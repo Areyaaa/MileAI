@@ -1,0 +1,18 @@
+# Foundry
+contracts/out/
+contracts/cache/
+contracts/.env
+contracts/broadcast/
+
+# Backend
+backend/.env
+backend/__pycache__/
+backend/*.db
+
+# Frontend
+frontend/node_modules/
+frontend/.next/
+
+# OS
+Thumbs.db
+.DS_Store
