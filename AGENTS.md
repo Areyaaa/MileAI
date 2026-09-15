@@ -24,7 +24,7 @@ Spesifikasi lengkap ada di `PRD-MileAI-SoloScope.md` di root repo — baca file 
 | Database | SQLite (file lokal) |
 | LLM | Groq API atau Google Gemini API (free tier), text-only — bukan multi-modal |
 | Frontend | Next.js, single page |
-| Wallet | MetaMask (BSC Testnet) |
+| Wallet | Multi-wallet via EIP-6963 (MetaMask, Rabby, dll — wallet extension apa pun yang terinstall), BSC Testnet |
 
 ## Struktur Proyek (target)
 
@@ -111,7 +111,7 @@ Jangan pernah hardcode private key atau API key di kode — selalu baca dari `.e
 ## Frontend — Spesifikasi Wajib
 
 Single page, berisi:
-1. Connect wallet (MetaMask, BSC Testnet)
+1. Connect wallet — dukung wallet extension apa pun yang terinstall di browser (MetaMask, Rabby, dll) via EIP-6963 provider discovery, bukan hardcode ke `window.ethereum` MetaMask saja. Kalau lebih dari satu wallet terdeteksi, tampilkan pilihan sederhana (dropdown/list) biar user pilih mana yang dipakai. Validasi network tetap wajib: BSC Testnet (chainId 97)
 2. Form "Buat Escrow" — alamat recipient, jumlah, daftar milestone (jumlah + deskripsi kriteria teks bebas)
 3. Form "Submit Bukti" — pilih escrow & milestone, isi teks bukti kerja + link opsional
 4. Status viewer — tampilkan tiap milestone: status (Pending/Submitted/Released/Perlu Review), confidence score AI, alasan tertulis AI
