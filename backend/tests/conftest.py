@@ -56,6 +56,7 @@ def api(tmp_path, monkeypatch):
 
     monkeypatch.setattr(config, "DB_PATH", str(tmp_path / "api.db"))
     monkeypatch.setattr(config, "POLL_INTERVAL_SECONDS", 3600.0)
+    monkeypatch.setattr(config, "AGENT_TRIGGER_TOKEN", "")  # default endpoint terbuka
     db_module.init_db()  # schema siap sebelum tes main menulis verifications
 
     client = FakeClient()
