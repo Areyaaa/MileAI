@@ -183,3 +183,68 @@ class TestPollOnce:
         monkeypatch.setattr(ai_module, "verify_llm", lambda rq, pf: (85, "ok"))
         results = agent_.poll_once()   # tidak boleh crash walau escrow 0 error
         assert any(r["action"] == "verified_auto" for r in results)
+
+
+class TestPollLoop:
+    """poll_loop(): background loop harus memanggil poll_once berulang dan
+    berhenti wajar (CancelledError) — relevan untuk graceful shutdown backend."""
+
+    def test_poll_loop_memanggil_poll_once_berulang_dan_berhenti_dicancel(
+            self, agent_, monkeypatch):
+        import asyncio
+        import agent as agent_module
+
+        calls = {"n": 0}
+        original = agent_.poll_once
+
+        def counted_poll_once():
+            calls["n"] += 1
+            return original()
+
+        monkeypatch.setattr(agent_, "poll_once", counted_poll_once)
+
+        sleeps = {"n": 0}
+
+        async def fake_sleep(_seconds):
+            sleeps["n"] += 1
+            if sleeps["n"] >= 2:
+                raise asyncio.CancelledError()
+
+        monkeypatch.setattr(agent_module.asyncio, "sleep", fake_sleep)
+
+        with pytest.raises(asyncio.CancelledError):
+            asyncio.run(agent_.poll_loop())
+
+        # 2 iterasi: poll_once dijalankan 2x, lalu loop dibatalkan via sleep
+        assert calls["n"] == 2
+
+    def test_poll_loop_tahan_exception_dari_poll_once(
+            self, agent_, monkeypatch):
+        import asyncio
+        import agent as agent_module
+
+        calls = {"n": 0}
+
+        def flaky():
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise RuntimeError("mock gagal sekali")
+            return []
+
+        monkeypatch.setattr(agent_, "poll_once", flaky)
+
+        sleeps = {"n": 0}
+
+        async def fake_sleep(_seconds):
+            if sleeps["n"] >= 1:
+                raise asyncio.CancelledError()
+            sleeps["n"] += 1
+
+        monkeypatch.setattr(agent_module.asyncio, "sleep", fake_sleep)
+
+        with pytest.raises(asyncio.CancelledError):
+            asyncio.run(agent_.poll_loop())
+
+        # poll_once pertama gagal (exception ditahan), iterasi kedua jalan,
+        # lalu loop dimatikan wajar
+        assert calls["n"] == 2
