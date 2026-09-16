@@ -11,6 +11,7 @@ polling tidak mungkin berbenturan nonce.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -18,7 +19,7 @@ import threading
 from pathlib import Path
 
 from web3 import Web3
-from web3.exceptions import ContractCustomError
+from web3.exceptions import BadFunctionCallOutput, ContractCustomError
 
 import config
 
@@ -98,7 +99,7 @@ class ContractClient:
             payer, recipient, token, milestone_count, refunded = (
                 self.contract.functions.getEscrow(escrow_id).call()
             )
-        except ContractCustomError as exc:
+        except (ContractCustomError, BadFunctionCallOutput) as exc:
             raise ValueError(f"Escrow {escrow_id} tidak ditemukan") from exc
         return {
             "escrow_id": escrow_id,
@@ -114,7 +115,7 @@ class ContractClient:
             amount, requirement, proof, status = (
                 self.contract.functions.getMilestone(escrow_id, milestone_index).call()
             )
-        except ContractCustomError as exc:
+        except (ContractCustomError, BadFunctionCallOutput) as exc:
             raise ValueError(
                 f"Milestone {escrow_id}/{milestone_index} di luar range"
             ) from exc
@@ -164,3 +165,15 @@ class ContractClient:
                     f"autoRelease tx reverted: {tx_hash.to_0x_hex()}"
                 )
             return tx_hash.to_0x_hex()
+
+    # ---------- varian async (web3.py sync dijalankan via to_thread) ----------
+    #
+    # web3.py bersifat sync. Kalau dipanggil langsung di dalam coroutine, event
+    # loop FastAPI ikut terblokir selama call RPC. Wrapper berikut menjamin
+    # panggilan dipindahkan ke executor thread (non-blocking).
+
+    async def get_milestone_async(self, escrow_id: int, milestone_index: int) -> dict:
+        return await asyncio.to_thread(self.get_milestone, escrow_id, milestone_index)
+
+    async def auto_release_async(self, escrow_id: int, milestone_index: int) -> str:
+        return await asyncio.to_thread(self.auto_release, escrow_id, milestone_index)
