@@ -38,7 +38,7 @@ class TestStatusViewer:
         )
 
         with api["TestClient"](api["app"]) as client:
-            resp = client.get("/escrow/0/milestones/0/status")
+            resp = client.get("/escrows/0/milestones/0/status")
             assert resp.status_code == 200
             body = resp.json()
             # data on-chain (dari mock)
@@ -56,13 +56,13 @@ class TestStatusViewer:
 
     def test_status_milestone_tidak_ada_404_dengan_detail(self, api):
         with api["TestClient"](api["app"]) as client:
-            resp = client.get("/escrow/0/milestones/99/status")
+            resp = client.get("/escrows/0/milestones/99/status")
             assert resp.status_code == 404
             assert resp.json()["detail"]
 
     def test_status_escrow_tidak_ada_404_dengan_detail(self, api):
         with api["TestClient"](api["app"]) as client:
-            resp = client.get("/escrow/999/milestones/0/status")
+            resp = client.get("/escrows/999/milestones/0/status")
             assert resp.status_code == 404
             assert resp.json()["detail"]
 
@@ -125,3 +125,50 @@ class TestAgentTrigger:
             body = resp.json()
             assert body["action"] == "manual_review"
             assert "gagal" in body["reason"].lower()
+
+
+class TestAgentTriggerAuth:
+    """Saat AGENT_TRIGGER_TOKEN diisi, POST /agent/trigger butuh token."""
+
+    def test_tanpa_token_ditolak_401(self, api, monkeypatch):
+        monkeypatch.setattr(config, "AGENT_TRIGGER_TOKEN", "rahasia123")
+        with api["TestClient"](api["app"]) as client:
+            resp = client.post("/agent/trigger/0/0")
+            assert resp.status_code == 401
+            assert resp.json()["detail"]
+
+    def test_token_salah_ditolak_401(self, api, monkeypatch):
+        monkeypatch.setattr(config, "AGENT_TRIGGER_TOKEN", "rahasia123")
+        with api["TestClient"](api["app"]) as client:
+            resp = client.post(
+                "/agent/trigger/0/0", headers={"Authorization": "Bearer salah"}
+            )
+            assert resp.status_code == 401
+
+    def test_bearer_token_benar_lolos(self, api, monkeypatch, stub_llm):
+        fc = api["client"]
+        fc.add_escrow(0, "0xp", "0xr", "0xt", 1)
+        fc.add_milestone(0, 0, 1 * 10**18, "krit", "bukti panjang " * 5,
+                         config.STATUS_SUBMITTED)
+        stub_llm(60, "ok")
+        monkeypatch.setattr(config, "AGENT_TRIGGER_TOKEN", "rahasia123")
+        with api["TestClient"](api["app"]) as client:
+            resp = client.post(
+                "/agent/trigger/0/0",
+                headers={"Authorization": "Bearer rahasia123"},
+            )
+            assert resp.status_code == 200
+            assert resp.json()["action"] == "manual_review"
+
+    def test_x_agent_token_benar_lolos(self, api, monkeypatch, stub_llm):
+        fc = api["client"]
+        fc.add_escrow(0, "0xp", "0xr", "0xt", 1)
+        fc.add_milestone(0, 0, 1 * 10**18, "krit", "bukti panjang " * 5,
+                         config.STATUS_SUBMITTED)
+        stub_llm(60, "ok")
+        monkeypatch.setattr(config, "AGENT_TRIGGER_TOKEN", "rahasia123")
+        with api["TestClient"](api["app"]) as client:
+            resp = client.post(
+                "/agent/trigger/0/0", headers={"X-Agent-Token": "rahasia123"}
+            )
+            assert resp.status_code == 200
