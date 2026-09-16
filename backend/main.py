@@ -7,7 +7,7 @@ untuk autoRelease.
 
 Endpoints:
 - GET /health
-- GET /escrow/{id}/milestones/{index}/status   (on-chain + hasil AI dari SQLite)
+- GET /escrows/{id}/milestones/{index}/status  (on-chain + hasil AI dari SQLite)
 - POST /agent/trigger/{escrow_id}/{milestone_index}  (verify manual, tanpa tunggu polling)
 """
 
@@ -16,8 +16,9 @@ from __future__ import annotations
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from typing import Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 import agent as agent_mod
@@ -62,7 +63,7 @@ app = FastAPI(title="MileAI Backend", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # dev/demo; frontend Next.js lokal/vercel
+    allow_origins=config.ALLOWED_CORS_ORIGINS,  # dev: localhost; atur via ALLOWED_CORS_ORIGINS
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -77,6 +78,33 @@ def _require_agent() -> agent_mod.AIAgent:
         )
         raise HTTPException(status_code=503, detail=msg)
     return app.state.agent
+
+
+def _require_agent_token(
+    authorization: Optional[str] = Header(default=None),
+    x_agent_token: Optional[str] = Header(default=None),
+) -> None:
+    """Guard ringan untuk POST /agent/trigger.
+
+    Menghindari spam verifikasi LLM oleh pihak ketiga (burn free-tier API).
+    Token dibaca dari AGENT_TRIGGER_TOKEN; kalau kosong, endpoint terbuka
+    (mode dev/demo — lihat catatan keamanan di config.py/.env.example).
+    """
+    expected = config.AGENT_TRIGGER_TOKEN
+    if not expected:
+        return
+
+    provided = ""
+    if authorization and authorization.lower().startswith("bearer "):
+        provided = authorization[7:].strip()
+    if not provided:
+        provided = (x_agent_token or "").strip()
+
+    if provided != expected:
+        raise HTTPException(
+            status_code=401,
+            detail="Trigger token salah atau tidak diberikan.",
+        )
 
 
 @app.get("/health")
@@ -97,7 +125,7 @@ def health():
     }
 
 
-@app.get("/escrow/{escrow_id}/milestones/{milestone_index}/status")
+@app.get("/escrows/{escrow_id}/milestones/{milestone_index}/status")
 def milestone_status(escrow_id: int, milestone_index: int):
     agent = _require_agent()
     client = agent.client
@@ -137,7 +165,7 @@ def milestone_status(escrow_id: int, milestone_index: int):
     }
 
 
-@app.post("/agent/trigger/{escrow_id}/{milestone_index}")
+@app.post("/agent/trigger/{escrow_id}/{milestone_index}", dependencies=[Depends(_require_agent_token)])
 async def trigger_verification(escrow_id: int, milestone_index: int):
     """Paksa verifikasi sekarang (tanpa menunggu siklus polling) — untuk testing."""
     agent = _require_agent()
