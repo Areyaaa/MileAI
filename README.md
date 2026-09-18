@@ -36,7 +36,7 @@ All transactions (createEscrow, submitProof, manualApprove, refund) are signed d
 |---|---|
 | Smart Contract | Solidity + Foundry + OpenZeppelin |
 | Chain | BNB Smart Chain Testnet (chainId 97) |
-| Backend + AI Agent | FastAPI (Python), single service |
+| Backend + AI Agent | FastAPI (Python) |
 | Contract Interaction | web3.py |
 | Database | SQLite |
 | LLM | Groq API / Google Gemini API (free tier, text-only) |
@@ -75,8 +75,6 @@ mileai/
 │   │   ├── api.js                   # Backend API client
 │   │   └── escrows.js               # Escrow helpers
 │   └── package.json
-├── scripts/
-│   └── deploy-testnet.ps1           # One-click deploy script
 ├── docs/                            # Per-area change log
 └── PRD-MileAI-SoloScope.md          # Product Requirements Document
 ```
@@ -100,25 +98,16 @@ mileai/
 
 ```bash
 cd contracts
-cp .env.example .env    # then fill in DEPLOYER_PRIVATE_KEY and AGENT_PRIVATE_KEY
+cp .env.example .env    
 forge install
 forge build
 forge test
 ```
 
 ### 2. Deploy to BSC Testnet
-
-Automated with the PowerShell script:
-
-```powershell
-.\scripts\deploy-testnet.ps1
-```
-
-Or manually:
-
 ```bash
 cd contracts
-forge script script/Deploy.s.sol:Deploy --rpc-url https://data-seed-prebsc-1-s1.binance.org:8545 --broadcast
+forge script script/Deploy.s.sol:Deploy --rpc-url https://data-seed-prebsc.org --broadcast
 ```
 
 After deploying, update `CONTRACT_ADDRESS` in `contracts/.env`, `backend/.env`, and `frontend/.env.local`.
