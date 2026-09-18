@@ -1,18 +1,18 @@
 // EIP-6963: Multi Injected Provider Discovery
 //
-// Standar browser untuk wallet extension (MetaMask, Rabby, Coinbase Wallet,
-// OKX Wallet, dll) meng-announce diri lewat event:
-//   - consumer dispatch  "eip6963:requestProvider"
+// Standard browser mechanism for wallet extensions (MetaMask, Rabby, Coinbase
+// Wallet, OKX Wallet, etc.) to announce themselves via events:
+//   - consumer dispatches "eip6963:requestProvider"
 //   - wallet           -> "eip6963:announceProvider" (detail = {info, provider})
-// Semua wallet yang SUDAH terinstall mengumumkan diri — tidak perlu hardcode.
-// Tanpa dependency npm tambahan (konsisten AGENTS.md: jangan tambah library
-// besar tanpa alasan).
+// All wallets already installed announce themselves — no hardcoding needed.
+// No extra npm dependency (consistent with AGENTS.md: don't add a large library
+// without good reason).
 //
 // info: { uuid, name, icon (data URI SVG), rdns }
-// provider: object EIP-1193 (window.ethereum-compatible)
+// provider: EIP-1193 object (window.ethereum-compatible)
 //
-// Fallback: kalau 0 provider announce lewat EIP-6963 (wallet lama / bukan
-// extension), pakai window.ethereum polos kalau ada.
+// Fallback: if 0 providers announce via EIP-6963 (old wallets / not extensions),
+// use plain window.ethereum if available.
 import { useEffect, useState } from "react";
 
 const LEGACY = {
@@ -56,10 +56,10 @@ export function useWalletProviders() {
 
     window.addEventListener("eip6963:announceProvider", onAnnounce);
 
-    // Minta semua wallet yang terinstall announce diri.
+    // Ask all installed wallets to announce themselves.
     window.dispatchEvent(new Event("eip6963:requestProvider"));
 
-    // Fallback window.ethereum untuk wallet lama / non-extension.
+    // Fallback window.ethereum for old / non-extension wallets.
     timer = window.setTimeout(() => {
       if (found.length === 0 && window.ethereum) {
         push(window.ethereum, legacyInfo());

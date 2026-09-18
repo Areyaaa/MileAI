@@ -1,12 +1,12 @@
 // ============================================================================
-// Submit Bukti (Worker).
+// Submit Proof (Worker).
 //
-// - Pilih escrow (dropdown escrow milik worker yang masih punya milestone
-//   Pending). Escrow bisa diisi otomatis lewat query ?escrow=<id>.
-// - Pilih milestone (dropdown "menyambung" — daftar milik escrow terpilih,
-//    hanya yang masih Pending).
-// - Isi teks bukti kerja + LINK (wajib). Bukti dikirim ke kontrak, lalu
-//   di-pol dan diverifikasi sendiri oleh AI Agent backend (auto-release).
+// - Pick an escrow (dropdown of the worker's escrows that still have Pending
+//   milestones). The escrow can be prefilled via ?escrow=<id> query.
+// - Pick a milestone (chained dropdown — milestones of the selected escrow,
+//   only those still Pending).
+// - Fill in proof of work text + LINK (required). Proof is sent to the
+//   contract, then polled and verified by the backend AI Agent (auto-release).
 // ============================================================================
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
@@ -49,7 +49,7 @@ export default function WorkerSubmit() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [provider, account]);
 
-  // Prefill escrow dari query ?escrow=<id> (mis. tombol di dashboard worker).
+  // Prefill the escrow from ?escrow=<id> query (e.g., dashboard worker button).
   useEffect(() => {
     const q = router.query.escrow;
     if (q && Array.isArray(q) ? q[0] : q) {
@@ -62,14 +62,14 @@ export default function WorkerSubmit() {
 
   const chosen = escrows.find((e) => String(e.id) === String(escrowSel));
 
-  // Saat escrow berubah, ambil daftar milestone Pending milik escrow itu.
+  // When the escrow changes, fetch its Pending milestone list.
   const pendingMilestones = useMemo(() => {
     if (!escrowSel || !chosen) return [];
     return chosen.data.milestones.filter((m) => m.status === 0);
   }, [escrowSel, chosen]);
 
   useEffect(() => {
-    // Kalau escrow terpilih tidak punya milestone Pending / sudah tidak valid, reset.
+    // Reset if the selected escrow has no Pending milestones / is no longer valid.
     if (escrowSel && pendingMilestones.length === 0 && !loading) {
       setEscrowSel("");
       setMilestoneSel("");
@@ -79,17 +79,17 @@ export default function WorkerSubmit() {
   const onSubmit = async () => {
     try {
       setError(null);
-      if (!escrowSel) throw new Error("Pilih escrow terlebih dahulu.");
-      if (milestoneSel === "") throw new Error("Pilih milestone yang mau disubmit.");
-      if (!proof.trim()) throw new Error("Isi teks bukti kerja.");
+      if (!escrowSel) throw new Error("Select an escrow first.");
+      if (milestoneSel === "") throw new Error("Select the milestone to submit.");
+      if (!proof.trim()) throw new Error("Fill in the proof of work text.");
       if (!/^https?:\/\/\S+\.\S+/.test(link.trim())) {
-        throw new Error("Link wajib diisi dan harus valid (https://…).");
+        throw new Error("The link is required and must be valid (https://…).");
       }
       setBusy("submit");
       const signer = await requireSigner();
       const text = `${proof.trim()}\nLink: ${link.trim()}`;
       const rc = await chain.submitProof(signer, parseInt(escrowSel, 10), parseInt(milestoneSel, 10), text);
-      pushLog(`Bukti dikirim escrow ${escrowSel} m${milestoneSel}: ${rc.hash}`);
+      pushLog(`Proof submitted escrow ${escrowSel} m${milestoneSel}: ${rc.hash}`);
       setResult({ escrowId: escrowSel, milestone: milestoneSel, hash: rc.hash, proofText: text });
       setProof("");
       setLink("");
@@ -102,21 +102,21 @@ export default function WorkerSubmit() {
   };
 
   return (
-    <Layout role="worker" title="Submit Bukti"
-      subtitle="Kirim bukti kerja untuk escrow kamu — diverifikasi AI" active="/worker/submit">
+    <Layout role="worker" title="Submit Proof"
+      subtitle="Send proof of work for your escrow — verified by AI" active="/worker/submit">
       {result && (
         <section className="card successCard">
-          <h3>Bukti terkirim</h3>
+          <h3>Proof submitted</h3>
           <div className="meta">
             Escrow #{result.escrowId} · Milestone {result.milestone} · Tx: {result.hash.slice(0, 22)}… 
           </div>
           <div className="meta">
-            AI Agent akan memverifikasi bukti secara otomatis (polling ±15 detik). Kalau confidence
-            &gt;= 85, dana langsung dicairkan — pantau di Dashboard.
+            The AI Agent will verify the proof automatically (polling ±15s). If confidence
+            &gt;= 85, funds are released immediately — keep an eye on the Dashboard.
           </div>
           <div className="row" style={{ marginTop: 10 }}>
-            <button className="btn" onClick={() => router.push("/worker")}>Ke Dashboard</button>
-            <button className="btn btn-ghost" onClick={() => { setResult(null); load(); }}>Submit lagi</button>
+            <button className="btn" onClick={() => router.push("/worker")}>Go to Dashboard</button>
+            <button className="btn btn-ghost" onClick={() => { setResult(null); load(); }}>Submit again</button>
           </div>
         </section>
       )}
@@ -125,12 +125,12 @@ export default function WorkerSubmit() {
         <div className="field">
           <label>Escrow</label>
           <select value={escrowSel} onChange={(e) => { setEscrowSel(e.target.value); setMilestoneSel(""); }}>
-            <option value="">— Pilih escrow —</option>
+            <option value="">— Select an escrow —</option>
             {mine.map((e) => {
               const pend = e.data.milestones.filter((m) => m.status === 0).length;
               return (
                 <option key={e.id} value={String(e.id)}>
-                  Escrow #{e.id} · {projects[String(e.id)] || "tanpa project"} ({pend} milestone tersedia)
+                  Escrow #{e.id} · {projects[String(e.id)] || "unnamed"} ({pend} milestones available)
                 </option>
               );
             })}
@@ -138,10 +138,10 @@ export default function WorkerSubmit() {
         </div>
 
         <div className="field">
-          <label>Milestone (menyambung dari escrow di atas)</label>
+          <label>Milestone (linked to the escrow above)</label>
           <select value={milestoneSel} onChange={(e) => setMilestoneSel(e.target.value)}
             disabled={!escrowSel || pendingMilestones.length === 0}>
-            <option value="">— Pilih milestone Pending —</option>
+            <option value="">— Select a pending milestone —</option>
             {pendingMilestones.map((m) => (
               <option key={m.index} value={String(m.index)}>
                 Milestone {m.index} — {m.amountEther} token · {m.proofRequirement}
@@ -149,27 +149,27 @@ export default function WorkerSubmit() {
             ))}
           </select>
           {escrowSel && pendingMilestones.length === 0 && (
-            <div className="formHint">Semua milestone di escrow ini sudah dikerjakan (bukan Pending).</div>
+            <div className="formHint">All milestones in this escrow are already done (none pending).</div>
           )}
         </div>
 
         <div className="field">
-          <label>Proof of work — apa saja yang kamu kerjakan</label>
+          <label>Proof of work — what did you complete</label>
           <textarea value={proof} onChange={(e) => setProof(e.target.value)}
-            placeholder="Jelaskan pekerjaan yang sudah selesai untuk milestone ini…" />
+            placeholder="Describe the work completed for this milestone…" />
         </div>
 
         <div className="field">
-          <label>Link (wajib)</label>
+          <label>Link (required)</label>
           <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://…" />
         </div>
 
         <button className="btn" onClick={onSubmit} disabled={Boolean(busy)}>
-          Submit Bukti
+          Submit Proof
         </button>
         <div className="formHint">
-          Bukti dikirim ke kontrak lalu di-pol AI Agent backend. Link wajib diisi supaya ada
-          bukti yang bisa dicek AI.
+          The proof is sent to the contract, then polled by the backend AI Agent. The link is
+          required so there's evidence the AI can verify.
         </div>
       </section>
     </Layout>

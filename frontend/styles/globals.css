@@ -1,13 +1,13 @@
 /* ============================================================
    MileAI — dark space / web3 premium theme
    ------------------------------------------------------------
-   Inspirasi gabungan (diminta user):
-   - Robotos NFT mint  : glow neon, cyber, token/mint focus
-   - Ledger Nano X     : scroll reveal smooth, glass premium, product hero
+   Combined inspiration (requested by user):
+   - Robotos NFT mint  : neon glow, cyber, token/mint focus
+   - Ledger Nano X     : smooth scroll reveal, glass premium, product hero
    - Fates World       : deep space aurora, sci-fi, holographic grid
-   Elemen baru: coin 3D (CSS), canvas jaringan node blockchain,
+   New elements: 3D coin (CSS), blockchain node canvas,
    aurora blobs, gridlines, hash ticker, reveal-on-scroll.
-   Aksen tetap teal (#2DD4BF) + secondary violet(#8B5CF6)/cyan(#22D3EE).
+   Accents kept teal (#2DD4BF) + secondary violet(#8B5CF6)/cyan(#22D3EE).
    ============================================================ */
 
 :root {
@@ -36,8 +36,8 @@
   --radius-lg: 22px;
   --shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
   --glow: 0 0 24px rgba(77, 124, 254, 0.35);
-  --font-title: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto,
-    Helvetica, Arial, sans-serif;
+  --font-title: var(--font-unbounded, "Unbounded"), -apple-system,
+    BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
 }
 
 * {
@@ -88,7 +88,7 @@ button {
   font-family: inherit;
 }
 
-/* ---------- FX background (panggil <FxBackground/> sekali per halaman) ---------- */
+/* ---------- FX background (render <FxBackground/> once per page) ---------- */
 
 .fxbg {
   position: absolute;
@@ -1077,6 +1077,46 @@ textarea {
 .landingBrand {
   padding: 2px 8px;
   font-size: 22px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.landingBrand .logo3d-wrap,
+.lnd-foot-brand .logo3d-wrap {
+  --ls: 36px;
+  perspective: 400px;
+}
+
+.landingBrand .logo3d-scene,
+.lnd-foot-brand .logo3d-scene {
+  width: 36px;
+  height: 36px;
+  perspective: 400px;
+}
+
+.landingBrand .logo3d-front,
+.lnd-foot-brand .logo3d-front {
+  width: 80%;
+}
+
+.landingBrand .logo3d-halo,
+.landingBrand .logo3d-shadow,
+.lnd-foot-brand .logo3d-halo,
+.lnd-foot-brand .logo3d-shadow {
+  display: none;
+}
+
+.landingBrand .logo3d-wrap,
+.lnd-foot-brand .logo3d-wrap {
+  animation: none;
+}
+
+.lnd-foot-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
 }
 
 .landingMain {
@@ -1142,6 +1182,12 @@ textarea {
 }
 
 /* --- coin 3D hero --- */
+
+.logo3d-hero-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 6px 0 2px;
+}
 
 .coinwrap {
   display: flex;
@@ -1493,7 +1539,7 @@ textarea {
 }
 
 /* ============================================================
-   LANDING — susunan ala FATES (full-page scroll sections)
+   LANDING — FATES-style layout (full-page scroll sections)
    ============================================================ */
 
 html {
@@ -1696,7 +1742,7 @@ html {
   }
 }
 
-/* --- marquee besar (divider antar section) --- */
+/* --- big marquee (section divider) --- */
 .marqueeBig {
   position: relative;
   z-index: 1;
@@ -1780,7 +1826,7 @@ html {
   line-height: 1.6;
 }
 
-/* --- story stack (pinned, ala Fates) --- */
+/* --- story stack (pinned, Fates-style) --- */
 .story {
   position: relative;
   z-index: 1;
@@ -1901,7 +1947,7 @@ html {
   box-shadow: 0 0 12px var(--accent);
 }
 
-/* --- pilih peran (section 003) --- */
+/* --- choose role (section 003) --- */
 .lnd-roles .lnd-inner {
   display: flex;
   flex-direction: column;
@@ -1944,6 +1990,17 @@ html {
   font-weight: 800;
 }
 
+/* footer Logo3D kecil */
+.lnd-foot-brand .logo3d-wrap {
+  --ls: 28px;
+  perspective: 300px;
+}
+.lnd-foot-brand .logo3d-scene {
+  width: 28px;
+  height: 28px;
+  perspective: 300px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -1955,6 +2012,156 @@ html {
   .reveal {
     opacity: 1 !important;
     transform: none !important;
+  }
+}
+
+/* ============================================================
+   LOGO 3D — front photo only, floating (no rotation)
+   ============================================================ */
+
+.logo3d-wrap {
+  position: relative;
+  width: var(--ls, 180px);
+  height: var(--ls, 180px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+  animation: logoBob 7s ease-in-out infinite;
+}
+
+.logo3d-scene {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  perspective: 900px;
+}
+
+.logo3d-front {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 70%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%) rotateX(var(--tiltX, 0deg)) rotateY(var(--tiltY, 0deg));
+  transform-style: preserve-3d;
+  transition: transform 0.35s cubic-bezier(0.2, 0.7, 0.2, 1);
+  filter: drop-shadow(0 20px 38px rgba(0, 0, 0, 0.55));
+  will-change: transform;
+}
+
+.logo3d-front img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.35));
+}
+
+.logo3d-halo {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 92%;
+  height: 92%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(77, 124, 254, 0.25), rgba(139, 92, 246, 0.12) 45%, transparent 72%);
+  filter: blur(28px);
+  animation: logoGlowPulse 4.5s ease-in-out infinite;
+}
+
+.logo3d-shadow {
+  position: absolute;
+  left: 50%;
+  bottom: -2%;
+  width: 62%;
+  height: 10%;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(0, 0, 0, 0.55), transparent 70%);
+  filter: blur(8px);
+  animation: logoShadowPulse 7s ease-in-out infinite;
+}
+
+@keyframes logoBob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+@keyframes logoGlowPulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes logoShadowPulse {
+  0%,
+  100% {
+    transform: translateX(-50%) scaleX(1);
+    opacity: 0.7;
+  }
+  50% {
+    transform: translateX(-50%) scaleX(0.9);
+    opacity: 0.5;
+  }
+}
+
+/* ============================================================
+   FLOATING COINS — random 3D token images (non-overlap) + floating effect
+   ============================================================ */
+
+.floating-coins {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.floating-coin {
+  position: absolute;
+  object-fit: contain;
+  opacity: 0.5;
+  filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.5))
+          drop-shadow(0 0 16px rgba(77, 124, 254, 0.18));
+  animation:
+    coinFloatY var(--fdur, 6s) ease-in-out infinite,
+    coinFloatX calc(var(--fdur, 6s) * 1.3) ease-in-out infinite;
+  will-change: transform;
+}
+
+.floating-coin:nth-child(2n) {
+  opacity: 0.62;
+}
+.floating-coin:nth-child(3n) {
+  opacity: 0.32;
+}
+
+@keyframes coinFloatY {
+  0%,
+  100% {
+    transform: translateY(0) rotate(var(--frot, -8deg));
+  }
+  50% {
+    transform: translateY(-22px) rotate(var(--frot, -8deg));
+  }
+}
+
+@keyframes coinFloatX {
+  0%,
+  100% {
+    margin-left: 0;
+  }
+  50% {
+    margin-left: var(--fdrift, 10px);
   }
 }
 

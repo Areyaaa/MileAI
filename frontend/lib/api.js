@@ -1,14 +1,14 @@
-// Klien API backend MileAI (FastAPI) — hanya untuk baca status verifikasi AI
-// dan trigger verifikasi opsional (dev). Semua tx tetap di-sign user
-// (lib/contract.js).
+// MileAI backend API client (FastAPI) — only for reading AI verification
+// status and optional verification triggers (dev). All txs are still signed by
+// the user (lib/contract.js).
 const API_BASE =
   process.env.NEXT_PUBLIC_BACKEND_URL ||
   process.env.NEXT_PUBLIC_API_BASE ||
   "http://localhost:8000";
 
-// Token ringan untuk endpoint POST /agent/trigger (anti-spam LLM).
-// Harus sama dengan AGENT_TRIGGER_TOKEN di backend/.env.
-// Kosong = don't send header (backend mode dev/terbuka).
+// Lightweight token for the POST /agent/trigger endpoint (LLM anti-spam).
+// Must match AGENT_TRIGGER_TOKEN in backend/.env.
+// Empty = don't send the header (backend dev/open mode).
 const TRIGGER_TOKEN = process.env.NEXT_PUBLIC_TRIGGER_TOKEN || "";
 
 async function jget(url) {
@@ -19,7 +19,7 @@ async function jget(url) {
       const body = await res.json();
       if (body?.detail) detail = body.detail;
     } catch {
-      /* body bukan JSON */
+      /* body is not JSON */
     }
     throw new Error(`Backend ${res.status}: ${detail}`);
   }
@@ -35,7 +35,7 @@ async function jpost(url) {
       const body = await res.json();
       if (body?.detail) detail = body.detail;
     } catch {
-      /* body bukan JSON */
+      /* body is not JSON */
     }
     throw new Error(`Backend ${res.status}: ${detail}`);
   }

@@ -1,16 +1,22 @@
 // ============================================================================
-// Efek visual "web3/space" tanpa dependency eksternal:
-//  - FxBackground : aurora blobs + gridlines + canvas jaringan node blockchain
-//  - Coin3D       : token pie-flip 3D (CSS) dengan orbit ring + shine
-//  - Reveal       : scroll-reveal (IntersectionObserver, ala Apple/Ledger)
-//  - AnimatedNumber: counter naik saat elemen terlihat
-//  - BrandMark    : logo hexagon-node SVG beranimasi
-//  - HashTicker   : marquee ticker hash/status, nuansa explorer blockchain
+// "Web3/space" visual effects, no external dependencies:
+//  - FxBackground    : aurora blobs + gridlines + blockchain node canvas
+//  - Coin3D          : 3D pie-flip token (CSS) with ring orbit + shine
+//  - Reveal          : scroll-reveal (IntersectionObserver, Apple/Ledger-style)
+//  - AnimatedNumber  : counter ramps up when the element enters view
+//  - BrandMark       : animated hexagon-node SVG logo
+//  - HashTicker      : marquee hash/status ticker, blockchain-explorer vibe
 // ============================================================================
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+import logoFront from "./assets/logo-front.png";
+import coinBnb from "./assets/3d-bnb.png";
+import coinBtc from "./assets/3d-btc.png";
+import coinCake from "./assets/3d-cake.png";
+import coinFloki from "./assets/3d-floki.png";
 
 // ----------------------------------------------------------------------------
-// Kanvas jaringan node blockchain (partikel ringan, tanpa library)
+// Blockchain node network canvas (light particles, no library)
 // ----------------------------------------------------------------------------
 export function BlockField({ className = "" }) {
   const ref = useRef(null);
@@ -82,7 +88,7 @@ export function BlockField({ className = "" }) {
 }
 
 // ----------------------------------------------------------------------------
-// Background halaman: aurora + gridlines + jaringan node
+// Page background: aurora + gridlines + node network
 // ----------------------------------------------------------------------------
 export function FxBackground({ nodes = 46 }) {
   return (
@@ -97,7 +103,7 @@ export function FxBackground({ nodes = 46 }) {
 }
 
 // ----------------------------------------------------------------------------
-// Logo animasi: hexagon + node tersambung
+// Animated logo: hexagon + connected nodes
 // ----------------------------------------------------------------------------
 export function BrandMark({ size = 26 }) {
   return (
@@ -154,7 +160,7 @@ export function Reveal({ children, delay = 0, as = "div", className = "" }) {
 }
 
 // ----------------------------------------------------------------------------
-// Counter naik saat terlihat
+// Counter that ramps up when visible
 // ----------------------------------------------------------------------------
 export function AnimatedNumber({ value, decimals = 2, duration = 900, prefix = "", suffix = "" }) {
   const ref = useRef(null);
@@ -197,6 +203,137 @@ export function AnimatedNumber({ value, decimals = 2, duration = 900, prefix = "
 }
 
 // ----------------------------------------------------------------------------
+// 3D logo — front photo only, floating (no rotation, no turntable). The logo
+// PNG sits centered with a radial halo + ellipse shadow so it reads as a
+// floating 3D object. With tilt=true it reacts to the mouse (subtle rotateX/Y)
+// for a stronger 3D feel — used only on the big hero logo.
+// ----------------------------------------------------------------------------
+export function Logo3D({ size = 180, className = "", tilt = false }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!tilt) return undefined;
+    const el = ref.current;
+    if (!el) return undefined;
+    const MAX = 14;
+    const onMove = (e) => {
+      const r = el.getBoundingClientRect();
+      const px = (e.clientX - r.left) / r.width - 0.5;
+      const py = (e.clientY - r.top) / r.height - 0.5;
+      el.style.setProperty("--tiltX", `${(-py * MAX).toFixed(2)}deg`);
+      el.style.setProperty("--tiltY", `${(px * MAX).toFixed(2)}deg`);
+    };
+    const onLeave = () => {
+      el.style.setProperty("--tiltX", "0deg");
+      el.style.setProperty("--tiltY", "0deg");
+    };
+    el.addEventListener("mousemove", onMove);
+    el.addEventListener("mouseleave", onLeave);
+    return () => {
+      el.removeEventListener("mousemove", onMove);
+      el.removeEventListener("mouseleave", onLeave);
+    };
+  }, [tilt]);
+
+  return (
+    <div ref={ref} className={`logo3d-wrap ${className}`} style={{ "--ls": `${size}px` }} aria-hidden>
+      <div className="logo3d-scene">
+        <div className="logo3d-halo" />
+        <div className="logo3d-front">
+          <img src={logoFront.src} alt="" draggable={false} />
+        </div>
+        <div className="logo3d-shadow" />
+      </div>
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------------------
+// Floating Coins — 3D token images spread EVENLY across the container (grid +
+// slight jitter) so they never clump, + floating animation
+// ----------------------------------------------------------------------------
+const COIN_IMAGES = [
+  { src: coinBnb.src,   alt: "BNB" },
+  { src: coinBtc.src,   alt: "BTC" },
+  { src: coinCake.src,  alt: "CAKE" },
+  { src: coinFloki.src, alt: "FLOKI" },
+];
+
+function mulberry32(seed) {
+  let s = seed >>> 0;
+  return function () {
+    s = (s + 0x6d2b79f5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function buildFloatingCoins(count) {
+  const rng = mulberry32(20260917);
+  const max = Math.min(count, 24);
+
+  // Even grid: more columns than rows because the hero area is wide.
+  const cols = Math.max(2, Math.ceil(Math.sqrt(max * 1.8)));
+  const rows = Math.ceil(max / cols);
+  const cellW = 92 / cols; // left range 4..96 (%)
+  const cellH = 86 / rows; // top range 6..92 (%)
+
+  const items = [];
+  for (let i = 0; i < max; i++) {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const size = 2.5 + rng() * 4.2;
+    const cx = 4 + cellW * col + cellW / 2;
+    const cy = 7 + cellH * row + cellH / 2;
+    const left = cx + (rng() - 0.5) * cellW * 0.6;
+    const top = cy + (rng() - 0.5) * cellH * 0.6;
+
+    const coin = COIN_IMAGES[i % COIN_IMAGES.length];
+    items.push({
+      key: i,
+      src: coin.src,
+      alt: coin.alt,
+      left,
+      top,
+      size,
+      dur: 5 + rng() * 6,
+      delay: rng() * -9,
+      drift: (rng() - 0.5) * 26,
+      rot: -14 + rng() * 28,
+    });
+  }
+  return items;
+}
+
+export function FloatingCoins({ count = 8, className = "" }) {
+  const items = useMemo(() => buildFloatingCoins(count), [count]);
+  return (
+    <div className={`floating-coins ${className}`} aria-hidden>
+      {items.map((c) => (
+        <img
+          key={c.key}
+          src={c.src}
+          alt={c.alt}
+          draggable={false}
+          className="floating-coin"
+          style={{
+            left: `${c.left}%`,
+            top: `${c.top}%`,
+            width: `${c.size}%`,
+            "--fdur": `${c.dur}s`,
+            "--fdrift": `${c.drift}px`,
+            "--frot": `${c.rot}deg`,
+            animationDelay: `${c.delay}s`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------------------
 // Coin / token 3D (pure CSS)
 // ----------------------------------------------------------------------------
 function CoinFace({ side }) {
@@ -235,7 +372,7 @@ export function Coin3D({ size = 220, className = "" }) {
 }
 
 // ----------------------------------------------------------------------------
-// Ticker hash/status — nuansa block explorer
+// Hash/status ticker — blockchain-explorer vibe
 // ----------------------------------------------------------------------------
 const TICKER = [
   "BLOCK 0x1a7f9e2b…",
@@ -245,6 +382,7 @@ const TICKER = [
   "ESCROW #4 MINED",
   "AI AGENT VERIFIED",
   "DANA CAIR 2.400 TK",
+  "FUNDS RELEASED 2.400 TK",
   "PROOF SUBMITTED",
   "BLOCK 0x5cc01d8f…",
 ];
@@ -265,7 +403,7 @@ export function HashTicker() {
 }
 
 // ----------------------------------------------------------------------------
-// Scroll progress bar (tipis, gradient biru→ungu) di bagian atas halaman
+// Scroll progress bar (thin, blue→purple gradient) at the top of the page
 // ----------------------------------------------------------------------------
 export function ScrollProgress() {
   const bar = useRef(null);
@@ -296,9 +434,9 @@ export function ScrollProgress() {
 }
 
 // ----------------------------------------------------------------------------
-// Parallax sederhana: elemen bergeser lambat dari elemen yang "scroll" (Fates-like).
-// speed > 0 ikut arah scroll, speed < 0 melawan arah.
-// opacityOut = true -> elemen memudar saat keluar dari viewport.
+// Simple parallax: element moves slower than the "scrolling" element (Fates-like).
+// speed > 0 follows scroll direction, speed < 0 opposes it.
+// opacityOut = true -> element fades out when leaving the viewport.
 // ----------------------------------------------------------------------------
 export function Parallax({ children, speed = -0.2, opacityOut = false, className = "" }) {
   const ref = useRef(null);
@@ -335,7 +473,7 @@ export function Parallax({ children, speed = -0.2, opacityOut = false, className
 }
 
 // ----------------------------------------------------------------------------
-// Marquee besar (nuansa Fates) — teks outline raksasa bergerak horizontal.
+// Big marquee (Fates vibe) — giant outlined text scrolling horizontally.
 // ----------------------------------------------------------------------------
 export function Marquee({ items, sep = "◇" }) {
   const doubled = [...items, ...items];
@@ -354,9 +492,9 @@ export function Marquee({ items, sep = "◇" }) {
 }
 
 // ----------------------------------------------------------------------------
-// StoryStack — section "pinned story" ala Fates:
-// container tinggi = (jumlah step) * 100vh, inner sticky 100vh.
-// Scroll progress menentukan step aktif; yang sudah lewat blur-fade ke atas.
+// StoryStack — "pinned story" section Fates-style:
+// container height = (steps count) * 100vh, inner sticky 100vh.
+// Scroll progress picks the active step; past ones blur-fade upward.
 // ----------------------------------------------------------------------------
 export function StoryStack({ steps }) {
   const wrap = useRef(null);
@@ -391,7 +529,7 @@ export function StoryStack({ steps }) {
   return (
     <div className="story" ref={wrap} style={{ height: `${steps.length}00vh` }}>
       <div className="story-pin">
-        <div className="story-label">Cara kerja — geser ke bawah</div>
+        <div className="story-label">How it works — scroll down</div>
         <div className="story-progress"><i ref={bar} /></div>
         <div className="story-stage">
           {steps.map((s, i) => (

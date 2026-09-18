@@ -1,16 +1,16 @@
-// Helper interaksi smart contract MilestoneEscrow dari frontend.
+// Helper for interacting with the MilestoneEscrow smart contract from the frontend.
 //
-// Prinsip API design (AGENTS.md): operasi milik user (createEscrow, submitProof,
-// manualApprove, refund) di-sign LANGSUNG oleh wallet user (MetaMask) via
-// ethers.js — backend tidak pernah menerima private key user.
+// API design principle (AGENTS.md): user-owned operations (createEscrow, submitProof,
+// manualApprove, refund) are signed DIRECTLY by the user's wallet (MetaMask) via
+// ethers.js — the backend never receives user private keys.
 import { ethers } from "ethers";
 import artifact from "./MileAI.json";
 
 export const CONTRACT_ADDRESS =
   process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "";
 
-// Chain target BSC Testnet (default 97). Untuk dev lokal pakai anvil: set
-// NEXT_PUBLIC_CHAIN_ID=31337 dan NEXT_PUBLIC_CONTRACT_ADDRESS=alamat deploy anvil.
+// Target chain = BSC Testnet (default 97). For local dev with anvil: set
+// NEXT_PUBLIC_CHAIN_ID=31337 and NEXT_PUBLIC_CONTRACT_ADDRESS=anvil deploy address.
 export const TARGET_CHAIN_ID = parseInt(
   process.env.NEXT_PUBLIC_CHAIN_ID || "97",
   10
@@ -58,7 +58,7 @@ export function hasMetaMask() {
 
 export async function connectWallet(provider) {
   if (!provider) {
-    throw new Error("Tidak ada wallet provider terdeteksi.");
+    throw new Error("No wallet provider detected.");
   }
   const ethersProvider = new ethers.BrowserProvider(provider, undefined);
   await ethersProvider.send("eth_requestAccounts", []);
@@ -68,13 +68,13 @@ export async function connectWallet(provider) {
 }
 
 function isChainNotFoundError(err) {
-  // error 4902 "Unrecognized chain ID" bisa muncul di berbagai lapisan,
-  // tergantung wrapper wallet (MetaMask/Rabby/ethers v6):
-  // - err.code === 4902                                  (MetaMask langsung)
+  // error 4902 "Unrecognized chain ID" can surface at various layers
+  // depending on the wallet wrapper (MetaMask/Rabby/ethers v6):
+  // - err.code === 4902                                  (MetaMask directly)
   // - err.info.error.code === 4902                       (ethers v6 wrap)
   // - err.data.originalError.code === 4902               (Rabby)
-  // - err.error.code === -4902 atau nested lain          (beberapa ekstensi)
-  // Ambil semua kemungkinan code dari semua path dan bandingkan.
+  // - err.error.code === -4902 or other nested           (some extensions)
+  // Collect every possible code from all paths and compare.
   const codes = [];
   const collect = (obj) => {
     if (!obj || typeof obj !== "object") return;
@@ -107,13 +107,13 @@ export async function isTargetChain(provider) {
 export function getContract(signerOrProvider) {
   if (!CONTRACT_ADDRESS || CONTRACT_ADDRESS === "0x0000000000000000000000000000000000000000") {
     throw new Error(
-      "NEXT_PUBLIC_CONTRACT_ADDRESS belum diisi di frontend/.env.local"
+      "NEXT_PUBLIC_CONTRACT_ADDRESS is not set in frontend/.env.local"
     );
   }
   return new ethers.Contract(CONTRACT_ADDRESS, artifact.abi, signerOrProvider);
 }
 
-// ------------- tx milik user (sign langsung oleh MetaMask) -------------
+// ------------- user-owned txs (signed directly by MetaMask) -------------
 
 export async function approveToken(signer, tokenAddress, amountEther) {
   const token = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
@@ -121,10 +121,10 @@ export async function approveToken(signer, tokenAddress, amountEther) {
   return tx.wait();
 }
 
-// Approve-infinite (type(uint256).max) — sekali approve, nggak perlu approve
-// ulang tiap ganti jumlah milestone. Anjuran umum di UI escrow karena
-// payer yang pegang kunci transaksinya sendiri; kontrak tetap nol-kan
-// allowance via SafeERC20 tiap escrow created (OpenZeppelin).
+// Infinite approve (type(uint256).max) — one approve, no need to re-approve
+// each time the milestone amount changes. A common recommendation in escrow UIs
+// because the payer holds their own tx keys; the contract still zeroes the
+// allowance via SafeERC20 on every escrow creation (OpenZeppelin).
 export async function approveTokenInfinite(signer, tokenAddress) {
   const token = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
   const MaxUint256 = ethers.MaxUint256;
@@ -152,7 +152,7 @@ export async function createEscrow(signer, recipient, tokenAddress, milestones) 
       }
     }
   } catch {
-    /* event tidak ter-parse (mis. provider lama) — escrowId diambil dari count */
+    /* event not parsed (e.g., legacy provider) — fall back to count for escrowId */
   }
   return { receipt, escrowId };
 }
@@ -175,7 +175,7 @@ export async function refundEscrow(signer, escrowId) {
   return tx.wait();
 }
 
-// ------------- baca on-chain (read-only, tanpa gas) -------------
+// ------------- read on-chain (read-only, no gas) -------------
 
 export async function readEscrowOnchain(provider, escrowId) {
   const contract = getContract(provider);
@@ -206,7 +206,7 @@ export async function readTokenSymbol(provider, tokenAddress) {
   }
 }
 
-// Jumlah escrow yang pernah dibuat (untuk ringkasan dashboard).
+// Number of escrows ever created (for the dashboard summary).
 export async function readEscrowCount(provider) {
   const contract = getContract(provider);
   return Number(await contract.escrowCount());

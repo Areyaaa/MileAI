@@ -1,8 +1,8 @@
-// Tombol wallet di topbar semua halaman.
-//  - Belum connect: klik -> connect (picker bila banyak wallet).
-//  - Sudah connect: klik -> menu dropdown: Ganti Wallet / Putuskan Koneksi /
-//    pindah network kalau salah chain.
-// Picker EIP-6963 dirender GLOBAL di _app.js (components/WalletPicker.jsx).
+// Wallet button in the topbar of every page.
+//  - Not connected: click -> connect (picker when multiple wallets).
+//  - Connected: click -> dropdown menu: Switch Wallet / Disconnect /
+//    switch network if on the wrong chain.
+// EIP-6963 picker rendered GLOBALLY in _app.js (components/WalletPicker.jsx).
 import { useState } from "react";
 import { useWallet } from "../lib/wallet";
 import * as chain from "../lib/contract";
@@ -26,7 +26,7 @@ export default function WalletChip({ disabled = false }) {
   return (
     <div className="walletWrap">
       <button className="walletChip" onClick={handleClick} disabled={disabled && !account}
-        title={disabled && !account ? "Pilih peran terlebih dahulu" : account ? (onTarget ? "Buka menu wallet" : "Wallet di chain salah") : "Koneksikan wallet"}>
+        title={disabled && !account ? "Pick a role first" : account ? (onTarget ? "Open wallet menu" : "Wallet on wrong chain") : "Connect wallet"}>
         {chipIcon ? (
           <img className="chipIcon" src={chipIcon} alt={activeWallet.info.name} />
         ) : (
@@ -49,14 +49,14 @@ export default function WalletChip({ disabled = false }) {
           </div>
           {!onTarget && (
             <button className="menuItem warn" onClick={onSwitchNetwork} disabled={Boolean(busy)}>
-              Pindah ke chain {chain.TARGET_CHAIN_ID}
+              Switch to chain {chain.TARGET_CHAIN_ID}
             </button>
           )}
           <button className="menuItem" onClick={() => { setMenu(false); switchWallet(); }}>
-            Ganti Wallet
+            Switch Wallet
           </button>
           <button className="menuItem danger" onClick={() => { setMenu(false); disconnect(); }}>
-            Putuskan Koneksi
+            Disconnect
           </button>
         </div>
       )}

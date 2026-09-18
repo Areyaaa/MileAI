@@ -1,10 +1,21 @@
-// Memuat semua escrow on-chain + hasil verifikasi AI backend, dipakai
-// dashboard payer & worker. Backend hanya dipakai untuk BACA verdict AI
-// (confidence/reason); semua tx tetap di-sign user (lib/contract.js).
+// Loads all on-chain escrows + backend AI verification results, used by the
+// payer & worker dashboards. The backend is only used to READ AI verdicts
+// (confidence/reason); all txs are still signed by the user (lib/contract.js).
 import * as chain from "./contract";
 import * as api from "./api";
 
 const MAX_SCAN = 50;
+
+// The backend returns display status labels in Indonesian (see backend/main.py
+// ACTION_LABEL). Map them to English here so the whole UI stays in English.
+const DISPLAY_EN = {
+  "Perlu Review Manual": "Manual Review Needed",
+  "Bukti Belum Cukup": "Insufficient Evidence",
+  "Error Verifikasi": "Verification Error",
+  "Released by AI (auto)": "Released by AI (auto)",
+};
+
+const enDisplay = (label) => (label && DISPLAY_EN[label]) || label;
 
 export async function loadAllEscrows(provider, maxScan = MAX_SCAN) {
   const count = await chain.readEscrowCount(provider);
@@ -17,7 +28,7 @@ export async function loadAllEscrows(provider, maxScan = MAX_SCAN) {
     for (const m of data.milestones) {
       try {
         const st = await api.fetchMilestoneStatus(id, m.index);
-        perEscrow[m.index] = { ver: st.verification, display: st.display_status };
+        perEscrow[m.index] = { ver: st.verification, display: enDisplay(st.display_status) };
       } catch (e) {
         perEscrow[m.index] = { backendError: e.message, display: null };
       }
@@ -29,7 +40,7 @@ export async function loadAllEscrows(provider, maxScan = MAX_SCAN) {
     list,
     ai,
     count,
-    note: count > maxScan ? `Menampilkan ${maxScan} escrow pertama dari ${count}.` : "",
+    note: count > maxScan ? `Showing the first ${maxScan} escrows of ${count}.` : "",
   };
 }
 

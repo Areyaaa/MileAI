@@ -1,9 +1,9 @@
-// Penyimpanan NAMA PROJECT per escrow id di localStorage browser.
+// PROJECT NAME storage per escrow id in the browser's localStorage.
 //
-// Keputusan desain (dikonfirmasi): kontrak & backend tidak punya field
-// "nama project", jadi disimpan di localStorage — cukup untuk demo 1 browser
-// (payer & worker ganti wallet di browser yang sama). Kalau tidak ketemu,
-// fallback tampil "Project #<id>".
+// Design decision (confirmed): the contract & backend have no "project name"
+// field, so it's stored in localStorage — good enough for a single-browser demo
+// (payer & worker switching wallets in the same browser). If not found, falls
+// back to showing "Project #<id>".
 const KEY = "mileai.projects.v1";
 
 const storage = () =>
@@ -27,7 +27,7 @@ export function saveProject(escrowId, projectName) {
     all[String(escrowId)] = projectName;
     storage() && storage().setItem(KEY, JSON.stringify(all));
   } catch {
-    /* localStorage penuh / private mode — abaikan, hanya label */
+    /* localStorage full / private mode — ignore, label only */
   }
 }
 

@@ -1,11 +1,11 @@
 // ============================================================================
-// Dashboard Payer — semua escrow yang DIBUAT oleh wallet ini.
+// Payer Dashboard — all escrows CREATED by this wallet.
 //
-// - Statistik ringkas (total escrow, dana terkunci, dana cair, menunggu review)
-// - Satu card per escrow: project, recipient, token, semua milestone dengan
-//   status on-chain + confidence & alasan dari backend, tombol approve manual
-//   (kalau "Perlu Review Manual"), re-verifikasi, dan refund.
-// - Auto refresh tiap ±15 detik (sinkron interval polling AI agent backend).
+// - Summary stats (total escrows, locked funds, released funds, needs review)
+// - One card per escrow: project, recipient, token, every milestone with
+//   on-chain status + confidence & reason from the backend, manual approve
+//   button (when "Manual Review Needed"), re-verification, and refund.
+// - Auto refresh every ±15 seconds (syncs with the backend AI agent poll).
 // ============================================================================
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
@@ -23,7 +23,7 @@ function PayerEscrowCard({ escrow, ai, projectName, provider, busy, onApprove, o
   return (
     <section className="card">
       <header className="escrowHead">
-        <h3>Escrow #{id} · {projectName || "Tanpa nama project"}</h3>
+        <h3>Escrow #{id} · {projectName || "Unnamed project"}</h3>
         <button className="btn btn-danger sm" onClick={() => onRefund(id)}
           disabled={Boolean(busy) || data.refunded}>
           Refund
@@ -61,10 +61,10 @@ function StatsBar({ stats }) {
   return (
     <div className="statsBar">
       <div className="stat"><div className="num"><AnimatedNumber value={stats.count} decimals={0} /></div><div className="lbl">Escrow</div></div>
-      <div className="stat"><div className="num"><AnimatedNumber value={stats.locked} /></div><div className="lbl">Dana terkunci</div></div>
-      <div className="stat good"><div className="num"><AnimatedNumber value={stats.released} /></div><div className="lbl">Sudah cair</div></div>
-      <div className="stat warn"><div className="num"><AnimatedNumber value={stats.review} /></div><div className="lbl">Perlu review</div></div>
-      <div className="stat"><div className="num"><AnimatedNumber value={stats.submitted} /></div><div className="lbl">Menunggu AI</div></div>
+      <div className="stat"><div className="num"><AnimatedNumber value={stats.locked} /></div><div className="lbl">Locked funds</div></div>
+      <div className="stat good"><div className="num"><AnimatedNumber value={stats.released} /></div><div className="lbl">Released</div></div>
+      <div className="stat warn"><div className="num"><AnimatedNumber value={stats.review} /></div><div className="lbl">Needs review</div></div>
+      <div className="stat"><div className="num"><AnimatedNumber value={stats.submitted} /></div><div className="lbl">Awaiting AI</div></div>
     </div>
   );
 }
@@ -88,7 +88,7 @@ export default function PayerDashboard() {
       setAiData(ai);
       setNote(n);
       setProjects(getProjects());
-      pushLog(`Data escrow dimuat (${list.length} on-chain).`);
+      pushLog(`Escrow data loaded (${list.length} on-chain).`);
     } catch (e) {
       setError((e && e.message) || String(e));
     } finally {
@@ -147,7 +147,7 @@ export default function PayerDashboard() {
       setError(null);
       setBusy(`recheck-${escrowId}-${idx}`);
       const res = await api.triggerVerification(escrowId, idx);
-      pushLog(`Verifikasi ulang escrow ${escrowId} m${idx}: ${res.action} (conf ${res.confidence}).`);
+      pushLog(`Re-verify escrow ${escrowId} m${idx}: ${res.action} (conf ${res.confidence}).`);
       await load();
     } catch (e) {
       setError((e && e.message) || String(e));
@@ -173,16 +173,16 @@ export default function PayerDashboard() {
 
   return (
     <Layout role="payer" title="Dashboard Payer"
-      subtitle="Milestone yang kamu buat & status verifikasi AI" active="/payer">
+      subtitle="Milestones you created & AI verification status" active="/payer">
       <div className="row" style={{ justifyContent: "space-between", marginBottom: 6 }}>
-        <div className="meta">{mine.length} escrow milik kamu · auto-refresh ±15 dtk</div>
+        <div className="meta">{mine.length} escrows of yours · auto-refresh ±15s</div>
         <div className="row">
           <button className="btn btn-ghost sm" onClick={() => router.push("/payer/create")}
             disabled={Boolean(busy)}>
-            + Buat Escrow Baru
+            + New Escrow
           </button>
           <button className="btn btn-ghost sm" onClick={load} disabled={loading}>
-            {loading ? "Memuat…" : "Refresh"}
+            {loading ? "Loading…" : "Refresh"}
           </button>
         </div>
       </div>
@@ -191,11 +191,11 @@ export default function PayerDashboard() {
       <StatsBar stats={stats} />
 
       {loading && mine.length === 0 && (
-        <div className="card empty">Memuat escrow on-chain…</div>
+        <div className="card empty">Loading on-chain escrows…</div>
       )}
       {!loading && mine.length === 0 && (
         <div className="card empty">
-          Belum ada escrow untuk wallet ini. Buat escrow pertama lewat menu <b>Buat Escrow</b>.
+          No escrows for this wallet yet. Create your first escrow via the <b>New Escrow</b> menu.
         </div>
       )}
 

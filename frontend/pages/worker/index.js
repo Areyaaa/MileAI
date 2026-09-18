@@ -1,13 +1,13 @@
 // ============================================================================
-// Dashboard Worker — semua escrow di mana wallet ini = recipient.
+// Worker Dashboard — all escrows where this wallet is the recipient.
 //
-// - Statistik: total escrow, total dana milestone, dana yang sudah CAIR (token)
-// - "Notifikasi pencairan": daftar milestone berstatus Released -> berapa yang
-//   masuk + tx hash.
-// - Satu card per escrow: project, payer, token, progres tiap milestone
-//   (status + confidence + alasan AI). Untuk milestone Pending ada tombol
-//   Submit Bukti (langsung ke halaman submit, escrow terisi otomatis).
-// - Auto refresh tiap ±15 detik (sinkron polling AI agent).
+// - Stats: total escrows, total milestone funds, funds already RELEASED (token)
+// - "Fund release notifications": list of Released milestones -> how much came
+//   in + tx hash.
+// - One card per escrow: project, payer, token, per-milestone progress
+//   (status + confidence + AI reason). For Pending milestones there's a
+//   Submit Proof button (goes straight to the submit page, escrow prefilled).
+// - Auto refresh every ±15 seconds (syncs with the AI agent poll).
 // ============================================================================
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
@@ -24,17 +24,17 @@ function WorkerEscrowCard({ escrow, ai, projectName, provider, pendingCount, onG
   return (
     <section className="card">
       <header className="escrowHead">
-        <h3>Escrow #{id} · {projectName || "Tanpa nama project"}</h3>
+        <h3>Escrow #{id} · {projectName || "Unnamed project"}</h3>
         {pendingCount > 0 && (
           <button className="btn btn-ghost sm" onClick={() => onGoSubmit(id)}>
-            Submit Bukti
+            Submit Proof
           </button>
         )}
       </header>
       <div className="user-grid">
         <div>Payer: <span>{fmtAddr(data.payer)}</span></div>
         <div>Token: <span><TokenSymbol provider={provider} token={data.token} /></span></div>
-        <div>Progress: <span>{data.milestones.filter((m) => m.status === 2).length}/{data.milestones.length} cair</span></div>
+        <div>Progress: <span>{data.milestones.filter((m) => m.status === 2).length}/{data.milestones.length} released</span></div>
       </div>
       {data.milestones.map((m) => (
         <MilestoneRow key={m.index} escrowId={id} m={m} ai={ai[m.index]} />
@@ -48,9 +48,9 @@ function StatsBar({ stats }) {
     <div className="statsBar">
       <div className="stat"><div className="num"><AnimatedNumber value={stats.count} decimals={0} /></div><div className="lbl">Escrow</div></div>
       <div className="stat"><div className="num"><AnimatedNumber value={stats.msCount} decimals={0} /></div><div className="lbl">Milestone</div></div>
-      <div className="stat good"><div className="num"><AnimatedNumber value={stats.received} /></div><div className="lbl">Total cair</div></div>
-      <div className="stat warn"><div className="num"><AnimatedNumber value={stats.review} /></div><div className="lbl">Perlu review</div></div>
-      <div className="stat"><div className="num"><AnimatedNumber value={stats.pending} /></div><div className="lbl">Belum dikerjakan</div></div>
+      <div className="stat good"><div className="num"><AnimatedNumber value={stats.received} /></div><div className="lbl">Total released</div></div>
+      <div className="stat warn"><div className="num"><AnimatedNumber value={stats.review} /></div><div className="lbl">Needs review</div></div>
+      <div className="stat"><div className="num"><AnimatedNumber value={stats.pending} /></div><div className="lbl">Not started</div></div>
     </div>
   );
 }
@@ -74,7 +74,7 @@ export default function WorkerDashboard() {
       setAiData(ai);
       setNote(n);
       setProjects(getProjects());
-      pushLog(`Data escrow dimuat (${list.length} on-chain).`);
+      pushLog(`Escrow data loaded (${list.length} on-chain).`);
     } catch (e) {
       setError((e && e.message) || String(e));
     } finally {
@@ -113,7 +113,7 @@ export default function WorkerDashboard() {
     return { count: mine.length, msCount, received, pending, review, submitted: sub };
   }, [mine, aiData]);
 
-  // Notifikasi pencairan dana (dari AI autoRelease / approve manual).
+  // Fund release notifications (from AI autoRelease / manual approve).
   const releases = useMemo(() => {
     const out = [];
     for (const e of mine) {
@@ -132,12 +132,12 @@ export default function WorkerDashboard() {
     (escrows.find((e) => e.id === escrowId) || {}).data?.milestones?.filter((m) => m.status === 0).length || 0;
 
   return (
-    <Layout role="worker" title="Dashboard Worker"
-      subtitle="Escrow yang kamu kerjakan & pencairan dana" active="/worker">
+    <Layout role="worker" title="Worker Dashboard"
+      subtitle="Escrows you're working on & fund releases" active="/worker">
       <div className="row" style={{ justifyContent: "space-between", marginBottom: 6 }}>
-        <div className="meta">{mine.length} escrow milik kamu · auto-refresh ±15 dtk</div>
+        <div className="meta">{mine.length} escrows of yours · auto-refresh ±15s</div>
         <button className="btn btn-ghost sm" onClick={load} disabled={loading}>
-          {loading ? "Memuat…" : "Refresh"}
+          {loading ? "Loading…" : "Refresh"}
         </button>
       </div>
       {note && <div className="meta" style={{ marginBottom: 8 }}>{note}</div>}
@@ -145,18 +145,18 @@ export default function WorkerDashboard() {
       <StatsBar stats={stats} />
 
       {loading && mine.length === 0 && (
-        <div className="card empty">Memuat escrow on-chain…</div>
+        <div className="card empty">Loading on-chain escrows…</div>
       )}
       {!loading && mine.length === 0 && (
         <div className="card empty">
-          Belum ada escrow yang menunjuk wallet ini sebagai recipient. Minta payer membuat
-          escrow dengan alamat kamu.
+          No escrows set this wallet as the recipient yet. Ask a payer to create
+          an escrow with your address.
         </div>
       )}
 
       {releases.length > 0 && (
         <section className="card">
-          <h3 style={{ margin: "0 0 8px" }}>Pemberitahuan pencairan dana</h3>
+          <h3 style={{ margin: "0 0 8px" }}>Fund release notifications</h3>
           {releases.map((r) => (
             <div className="releaseRow" key={`${r.escrowId}-${r.index}`}>
               <span className="releaseAmount">+{r.amount} token</span>

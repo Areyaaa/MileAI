@@ -1,18 +1,19 @@
 // ============================================================================
-// Landing — one-page ala Fates: setiap putaran scroll adalah "babak".
-//   001 HERO        — headline + token 3D, memudar saat scroll (parallax)
-//   002 MASALAH     — pain points pembayaran proyek manual
-//   003 CARA KERJA  — pinned story stack (5 langkah, slide berganti) ala Fates
-//   004 PILIH PERAN — role selection -> popup connect wallet -> redirect
-// Walet state global (lib/wallet.jsx). Semua tx user di-sign langsung dari
-// wallet (lib/contract.js), backend hanya produce AI verdict.
+// Landing — one-page Fates-style: every scroll turn is a "act".
+//   001 HERO        — headline + 3D token, fades on scroll (parallax)
+//   002 PROBLEM     — pain points of manual project payments
+//   003 HOW IT WORKS — pinned story stack (5 steps, slides change) Fates-style
+//   004 CHOOSE ROLE — role selection -> connect wallet popup -> redirect
+// Global wallet state (lib/wallet.jsx). All user txs are signed directly from
+// the wallet (lib/contract.js); the backend only produces AI verdicts.
 // ============================================================================
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import {
   FxBackground,
   BrandMark,
-  Coin3D,
+  Logo3D,
+  FloatingCoins,
   Reveal,
   HashTicker,
   Marquee,
@@ -32,7 +33,7 @@ function SwitchNetworkButton() {
   );
 }
 
-// Ikon role (inline SVG — pengganti emoji).
+// Role icon (inline SVG — instead of emoji).
 const RoleIcon = ({ kind }) => (
   <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor"
     strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -55,35 +56,35 @@ const RoleIcon = ({ kind }) => (
 );
 
 const PROBLEMS = [
-  { t: "Approval manusia", d: "Menunggu review manusia bikin proyek macet — dana kepegang, progress stuck berbulan-bulan." },
-  { t: "Bukti diragukan", d: "Hasil kerja diperdebatkan oleh opini, bukan fakta yang bisa diverifikasi siapa pun." },
-  { t: "Trust tanpa jaminan", d: "Worker takut nggak dibayar, payer takut dana kabur. Keduanya main untung-untungan." },
+  { t: "Human approval", d: "Waiting for human review stalls projects — funds sit locked and progress is stuck for months." },
+  { t: "Disputed evidence", d: "Work output is argued over by opinions, not facts that anyone can verify." },
+  { t: "Trust with no guarantee", d: "Workers fear they won't get paid; payers fear the funds will vanish. Both sides are gambling." },
 ];
 
 const STEPS = [
   {
-    title: "Pilih peran & connect wallet",
-    body: "Tentukan kamu Payer atau Worker, lalu hubungkan wallet (EIP-6963). Semua transaksi tetap di-sign langsung dari wallet kamu — backend tidak pernah pegang private key user.",
+    title: "Pick a role & connect wallet",
+    body: "Decide whether you're a Payer or Worker, then connect your wallet (EIP-6963). All transactions are still signed directly from your wallet — the backend never holds user private keys.",
   },
   {
-    title: "Payer mengunci dana",
-    body: "Pilih token, tentukan milestone, tulis kriteria tiap tahap. Dana escrow masuk smart contract MilestoneEscrow di BNB Smart Chain Testnet.",
+    title: "Payer locks funds",
+    body: "Choose a token, set milestones, write the criteria for each stage. Escrow funds go into the MilestoneEscrow smart contract on BNB Smart Chain Testnet.",
   },
   {
-    title: "Worker kirim bukti kerja",
-    body: "Setiap tahap selesai, kirim teks bukti + link. Bukti masuk on-chain — transparan, siapa pun bisa lihat.",
+    title: "Worker submits proof of work",
+    body: "When a stage is done, submit proof text + link. The proof goes on-chain — transparent, anyone can see it.",
   },
   {
-    title: "AI Agent verifikasi",
-    body: "Backend polling status 'Submitted', kirim kriteria vs bukti ke LLM (Groq/Gemini). Keluarnya confidence 0–100 + alasan singkat.",
+    title: "AI Agent verifies",
+    body: "The backend polls for 'Submitted' status and sends criteria vs proof to the LLM (Groq/Gemini). Output: a 0–100 confidence score + short reason.",
   },
   {
-    title: "Dana cair otomatis",
-    body: "Confidence ≥ 85 → autoRelease tanpa approval manusia. AI ragu? Payer bisa approve manual, atau refund sisa dana.",
+    title: "Funds release automatically",
+    body: "Confidence ≥ 85 → autoRelease with no human approval. AI not sure? The payer can approve manually, or refund the remaining funds.",
   },
 ];
 
-const MARQUEE_1 = ["Dana terkunci", "AI verifikasi", "Milestone", "BSC Testnet", "Escrow on-chain"];
+const MARQUEE_1 = ["Funds locked", "AI verification", "Milestone", "BSC Testnet", "On-chain escrow"];
 const MARQUEE_2 = ["Milestone", "Confidence 85+", "Auto release", "Proof on-chain"];
 
 export default function Home() {
@@ -91,7 +92,7 @@ export default function Home() {
   const router = useRouter();
   const [pendingRole, setPendingRole] = useState(null);
 
-  // Setelah wallet connect, otomatis masuk ke peran yang barusan dipilih.
+  // After wallet connect, automatically enter the role that was just chosen.
   useEffect(() => {
     if (provider && pendingRole) {
       router.push(pendingRole === "payer" ? "/payer" : "/worker");
@@ -105,7 +106,7 @@ export default function Home() {
       router.push(role === "payer" ? "/payer" : "/worker");
     } else {
       setPendingRole(role);
-      onConnect(); // popup connect wallet (langkah 2)
+      onConnect(); // connect wallet popup (step 2)
     }
   };
 
@@ -115,8 +116,8 @@ export default function Home() {
       <ScrollProgress />
 
       <header className="landingHead">
-        <div className="brand landingBrand"><BrandMark size={28} /> Mile<em>AI</em></div>
-        <nav className="lndNav" aria-label="Navigasi halaman">
+        <div className="brand landingBrand"><Logo3D size={36} /> <span>Mile<em>AI</em></span></div>
+        <nav className="lndNav" aria-label="Page navigation">
           <a href="#masalah">001</a>
           <a href="#cara-kerja">002</a>
           <a href="#pilih-peran">003</a>
@@ -126,18 +127,22 @@ export default function Home() {
 
       {/* ============================================================ 001 HERO */}
       <section className="lnd lnd-hero">
+        <FloatingCoins count={10} />
         <div className="hero-inner">
           <Parallax speed={-0.25} opacityOut className="hero">
             <span className="hero-kicker">AI Agent Escrow · BSC Testnet</span>
-            <h1>Milestone escrow yang dicairkan oleh AI</h1>
+            <h1>Milestone escrow released by AI</h1>
             <p>
-              Dana dikunci di smart contract BNB Smart Chain, terbagi per milestone.
-              Worker kirim bukti kerja, AI Agent verifikasi secara otonom, dan dana
-              cair — tanpa approval manusia. Fallback approve manual tersedia kalau AI ragu.
+              Funds locked in a BNB Smart Chain contract, split per milestone.
+              Workers submit proof of work, the AI Agent verifies autonomously,
+              and funds are released — no human approval. A manual approve
+              fallback is available if the AI is unsure.
             </p>
           </Parallax>
           <Parallax speed={-0.12}>
-            <div className="coinwrap"><Coin3D size={220} /></div>
+            <div className="logo3d-hero-wrap">
+              <Logo3D size={300} tilt />
+            </div>
           </Parallax>
         </div>
         <div className="scroll-hint"><i /><span>Scroll</span></div>
@@ -145,22 +150,22 @@ export default function Home() {
 
       <Marquee items={MARQUEE_1} />
 
-      {/* ======================================================= 002 MASALAH */}
+      {/* ======================================================= 002 PROBLEM */}
       <section className="lnd lnd-problem" id="masalah">
         <div className="bigNum">002</div>
         <div className="lnd-inner">
           <div className="lndH">
-            <span className="lndH-num">002 / MASALAH</span>
+            <span className="lndH-num">002 / PROBLEM</span>
             <span className="lndH-rule" />
           </div>
           <Reveal>
-            <h2 className="lnd-h2">Pembayaran proyek jalannya “nanti-nanti”</h2>
+            <h2 className="lnd-h2">Project payments keep getting delayed</h2>
           </Reveal>
           <Reveal delay={80}>
             <p className="lnd-lead">
-              Hampir semua kerja jarak jauh bergantung pada kepercayaan antar dua pihak
-              yang nggak saling kenal. Hasilnya: dana kepegang, bukti diperdebatkan,
-              dan deadline molor.
+              Almost all remote work depends on trust between two parties
+              who don't know each other. The result: funds get stuck, proof
+              is disputed, and deadlines slip.
             </p>
           </Reveal>
           <Reveal delay={160}>
@@ -178,26 +183,26 @@ export default function Home() {
 
       <Marquee items={MARQUEE_2} />
 
-      {/* ==================================================== 003 CARA KERJA */}
+      {/* ==================================================== 003 HOW IT WORKS */}
       <section className="lnd lnd-how" id="cara-kerja">
         <div className="bigNum">003</div>
         <StoryStack steps={STEPS} />
       </section>
 
-      {/* ==================================================== 004 PILIH PERAN */}
+      {/* ==================================================== 004 CHOOSE ROLE */}
       <section className="lnd lnd-roles" id="pilih-peran">
         <div className="lnd-inner">
           <div className="lndH">
-            <span className="lndH-num">004 / PILIH PERAN</span>
+            <span className="lndH-num">004 / CHOOSE A ROLE</span>
             <span className="lndH-rule" />
           </div>
           <Reveal>
-            <h2 className="lnd-h2">Sekarang, gantian kamu</h2>
+            <h2 className="lnd-h2">Now it's your turn</h2>
           </Reveal>
           <Reveal delay={80}>
             <p className="lnd-lead">
-              Pilih peran — popup connect wallet langsung muncul, dan kamu akan
-              dialihkan otomatis setelah tersambung.
+              Pick a role — a connect wallet popup appears right away, and
+              you'll be redirected automatically once connected.
             </p>
           </Reveal>
           <div className="roleGrid">
@@ -206,10 +211,10 @@ export default function Home() {
                 <div className="roleIcon"><RoleIcon kind="payer" /></div>
                 <h3>Join as Payer</h3>
                 <p>
-                  Buat escrow dengan milestone, kunci dana, pantau verifikasi AI
-                  (confidence + alasan), approve manual & refund bila perlu.
+                  Create a milestone escrow, lock funds, monitor AI verification
+                  (confidence + reason), approve manually & refund if needed.
                 </p>
-                <span className="roleGo">Pilih →</span>
+                <span className="roleGo">Choose →</span>
               </button>
             </Reveal>
             <Reveal delay={260}>
@@ -217,17 +222,17 @@ export default function Home() {
                 <div className="roleIcon"><RoleIcon kind="worker" /></div>
                 <h3>Join as Worker</h3>
                 <p>
-                  Lihat escrow yang kamu kerjakan, submit bukti kerja, dan terima
-                  pencairan dana otomatis dari AI.
+                  View the escrows you're working on, submit proof of work, and
+                  receive automatic fund releases from the AI.
                 </p>
-                <span className="roleGo">Pilih →</span>
+                <span className="roleGo">Choose →</span>
               </button>
             </Reveal>
           </div>
 
           {provider && !onTarget && (
             <div className="netwarn" style={{ marginTop: 18 }}>
-              <span>Wallet di network salah — interaksi diblokir sampai pindah ke chain {chain.TARGET_CHAIN_ID}.</span>
+              <span>Wallet is on the wrong network — interactions are blocked until you switch to chain {chain.TARGET_CHAIN_ID}.</span>
               <SwitchNetworkButton />
             </div>
           )}
@@ -237,9 +242,9 @@ export default function Home() {
       <HashTicker />
 
       <footer className="lnd-foot">
-        <div className="lnd-foot-brand"><BrandMark size={20} /> Mile<em>AI</em></div>
+        <div className="lnd-foot-brand"><Logo3D size={28} /> <span>Mile<em>AI</em></span></div>
         <span className="meta">
-          Milestone escrow otonom · BNB Smart Chain Testnet · AI Agent verifikasi · 1 dev, hackathon BNB Chain
+          Autonomous milestone escrow · BNB Smart Chain Testnet · AI Agent verification · 1 dev, BNB Chain hackathon
         </span>
       </footer>
     </div>

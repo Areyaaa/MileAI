@@ -1,12 +1,12 @@
-// State wallet global (React Context) — dipakai semua halaman lewat useWallet().
+// Global wallet state (React Context) — used by all pages via useWallet().
 //
-// Mendukung:
-//  - Multi-wallet via EIP-6963 (ReadMetaMask/Rabby/dll)
-//  - Connect wallet pertama kali + GANTI wallet (+ putus koneksi) kapan pun
-//  - Validasi network target (BSC Testnet / anvil), switch network otomatis
-//  - requireSigner() untuk tx yang di-sign langsung wallet user
+// Supports:
+//  - Multi-wallet via EIP-6963 (MetaMask/Rabby/etc.)
+//  - First connect + SWITCH wallet (+ disconnect) at any time
+//  - Target network validation (BSC Testnet / anvil), automatic network switch
+//  - requireSigner() for txs signed directly by the user's wallet
 //
-// Pakai <WalletProvider> sekali di pages/_app.js.
+// Use <WalletProvider> once in pages/_app.js.
 import { createContext, useContext, useEffect, useState } from "react";
 import * as chain from "./contract";
 import { useWalletProviders } from "./useWalletProviders";
@@ -15,7 +15,7 @@ const WalletContext = createContext(null);
 
 export function useWallet() {
   const ctx = useContext(WalletContext);
-  if (!ctx) throw new Error("useWallet harus dipakai di dalam <WalletProvider>.");
+  if (!ctx) throw new Error("useWallet must be used inside <WalletProvider>.");
   return ctx;
 }
 
@@ -63,7 +63,7 @@ export function WalletProvider({ children }) {
       await checkChain(p);
       const info = (walletProviders.find((w) => w.provider === walletProvider) || {}).info;
       pushLog(
-        `Wallet tersambung: ${(info && info.name) || "wallet"} · ${address.slice(0, 6)}…${address.slice(-4)}`
+        `Wallet connected: ${(info && info.name) || "wallet"} · ${address.slice(0, 6)}…${address.slice(-4)}`
       );
     } catch (e) {
       fail(e);
@@ -82,7 +82,7 @@ export function WalletProvider({ children }) {
     }
     fail(
       new Error(
-        "Tidak ada wallet extension terdeteksi. Install MetaMask/Rabby/dll lalu reload halaman."
+        "No wallet extension detected. Install MetaMask/Rabby/etc., then reload the page."
       )
     );
   }
@@ -92,15 +92,15 @@ export function WalletProvider({ children }) {
       setError(null);
       await chain.ensureBscTestnet(provider);
       await checkChain(provider);
-      pushLog(`Network dipindah ke chain ${chain.TARGET_CHAIN_ID}`);
+      pushLog(`Network switched to chain ${chain.TARGET_CHAIN_ID}`);
     } catch (e) {
       fail(e);
     }
   }
 
   async function requireSigner() {
-    if (!provider) throw new Error("Koneksikan wallet dulu.");
-    if (!onTarget) throw new Error("Wallet belum di chain target — pindah network dulu.");
+    if (!provider) throw new Error("Connect your wallet first.");
+    if (!onTarget) throw new Error("Wallet is not on the target chain — switch networks first.");
     return provider.getSigner();
   }
 
@@ -115,13 +115,13 @@ export function WalletProvider({ children }) {
     setActiveProvider(null);
     setOnTarget(false);
     setPickerOpen(false);
-    pushLog("Wallet diputuskan.");
+    pushLog("Wallet disconnected.");
   }
 
-  // Ikuti perpindahan akun / jaringan di wallet yang sedang aktif.
-  // CATATAN: event EIP-1193 (accountsChanged/chainChanged) bukan event
-  // BrowserProvider ethers v6 — harus dipasang di window.ethereum mentah,
-  // bukan via provider.on(...) (yang cuma terima block/debug/error).
+  // Follow account / network changes on the active wallet.
+  // NOTE: EIP-1193 events (accountsChanged/chainChanged) are not ethers v6
+  // BrowserProvider events — they must be attached to the raw window.ethereum,
+  // not via provider.on(...) (which only accepts block/debug/error).
   useEffect(() => {
     if (!provider) return undefined;
     const ethereum = window.ethereum;
@@ -131,7 +131,7 @@ export function WalletProvider({ children }) {
       const next = accounts[0];
       setAccount(next);
       await checkChain(provider);
-      pushLog(`Akun wallet berubah: ${next.slice(0, 6)}…${next.slice(-4)}`);
+      pushLog(`Wallet account changed: ${next.slice(0, 6)}…${next.slice(-4)}`);
     };
     const onChain = async () => {
       await checkChain(provider);

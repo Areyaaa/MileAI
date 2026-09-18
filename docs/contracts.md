@@ -2,6 +2,29 @@
 
 ## Log Perubahan
 
+## [2026-09-16 20:30] Pre-testnet security review: tidak ada perubahan kode kontrak
+
+**Apa yang diperiksa/difirmasi:**
+- Review keamanan penuh sebelum deploy testnet. Tidak ada perubahan kode kontrak (`MilestoneEscrow.sol`). Semua mekanisme keamanan yang diwajibkan sudah berjalan benar (verified via test suite 41 test):
+  - `ReentrancyGuard` berfungsi (test `MaliciousToken` re-enter → gagal).
+  - `AccessControl` (`AI_AGENT_ROLE` terpisah dari `DEFAULT_ADMIN_ROLE`).
+  - `SafeERC20` menangkap silent-fail (`FalseTransferERC20` test → revert `SafeERC20FailedOperation`).
+  - Checks-effects-interactions: status milestone di-set sebelum transfer dana.
+  - Bounds checking: `_escrowsAt`, `_milestoneAt` dengan custom error.
+  - Otorisasi per-escrow: `manualApprove` dan `refund` cek `msg.sender == e.payer`.
+  - Idempotency via status guard: Submit/Release hanya jalan di status yang sesuai.
+  - `MAX_MILESTONES=10`.
+
+**Kenapa:**
+- Juri BNB Chain hackathon menilai smart contract quality. Review ini memastikan tidak ada vulnerability yang terlewat sebelum dana asli/testnet mengalir.
+
+**Status:**
+- [x] Sudah ditest — 41/41 PASS, fuzz 10k PASS, coverage 100%.
+
+**Hal yang perlu diperhatikan / belum selesai (known limitation, bukan bug):**
+- **Fee-on-transfer token**: kalau payer memakai token dengan mekanisme fee-on-transfer, jumlah yang benar-benar masuk ke kontrak bisa kurang dari `sum(milestone.amount)`. Saat `autoRelease`/`manualApprove` dipanggil, `safeTransfer` mencoba mengirim jumlah `milestone.amount` — kalau kontrak tidak punya cukup token (karena fee sudah mengurangi balance), transaksi revert (status tidak berubah). Ini bukan vulnerability, tapi berarti token fee-on-transfer tidak kompatibel. Token standar (USDT, USDC, BNB, MILE, dll.) tidak ada fee-on-transfer, jadi tidak berpengaruh di testnet atau mainnet. Tidak perlu fix untuk MVP.
+- **`raiseDispute`/`resolveDispute`** tidak pakai `nonReentrant` — aman karena tidak ada transfer dana, tapi catatan di sini untuk referensi.
+
 ## [2026-09-14 20:10] Gap test: SafeERC20 false-return, fuzz 10k runs, revoke role, + script deploy & E2E
 
 **Apa yang dibuat/diubah:**
@@ -14,10 +37,9 @@
 - `contracts/script/Deploy.s.sol` (baru): forge script deploy `TestToken` + `MilestoneEscrow`, grant `AI_AGENT_ROLE` ke `AGENT_PRIVATE_KEY`. Key dibaca dari `.env`.
 - `contracts/script/E2E.s.sol` (baru): forge script jalankan 1 flow end-to-end di chain mana pun: createEscrow (payer) → submitProof (recipient) → autoRelease (agent), lalu verifikasi state on-chain.
 - `contracts/.env.example` (baru) + `.gitignore` ditambah `contracts/.env` & `contracts/broadcast/`.
-- File laporan hasil test terpisah: `docs/result-contracts.md` (ringkasan pengetesan saja, bukan isi file ini).
 
 **Hasil:**
-- `forge test` via WSL: **41 passed, 0 failed** (19 unit + 3 fuzz default + 2 existing; rincian di `docs/result-contracts.md`).
+- `forge test` via WSL: **41 passed, 0 failed**.
 - Invariant paling kritis "total token terkunci == sum semua milestone amount" diuji ulang dengan **`--fuzz-runs 10000`**: **PASS (10.000 runs, 0 failed)**.
 - `forge coverage --report summary`: `src/MilestoneEscrow.sol` tetap **100% lines / statements / branches (26/26) / funcs**.
 - Validasi script deploy + E2E di **Anvil lokal** (bukan testnet) sukses: deploy `TestToken` 0x5FbDB2…0aa3, `MilestoneEscrow` 0xe7f1725…F0512; E2E create→submit→autoRelease berjalan penuh (escrowId 0, milestone status Released=2, recipient balance 100 MILE, escrow balance 0).

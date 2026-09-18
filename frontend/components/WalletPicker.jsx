@@ -1,5 +1,5 @@
-// Modal pilih wallet (EIP-6963) — dirender global di _app.js, sehingga bisa
-// dipanggil dari halaman mana pun (contoh: landing setelah user pilih peran).
+// Wallet picker modal (EIP-6963) — rendered globally in _app.js, so it can be
+// opened from any page (e.g., landing after the user picks a role).
 import { useWallet } from "../lib/wallet";
 
 export default function WalletPicker() {
@@ -9,11 +9,11 @@ export default function WalletPicker() {
       <div className="picker" onClick={(e) => e.stopPropagation()}>
         <h3>Connect wallet</h3>
         <p className="meta">
-          Pilih wallet extension untuk konek. {walletProviders.length} wallet terdeteksi (EIP-6963).
+          Pick a wallet extension to connect. {walletProviders.length} wallets detected (EIP-6963).
         </p>
         {walletProviders.length === 0 && (
           <p className="error" style={{ margin: 0 }}>
-            Tidak ada wallet extension terdeteksi. Install MetaMask / Rabby / dll, lalu reload halaman.
+            No wallet extension detected. Install MetaMask / Rabby / etc., then reload the page.
           </p>
         )}
         {walletProviders.map((w) => {
@@ -26,11 +26,11 @@ export default function WalletPicker() {
                 <img className="pickerIcon" src={w.info.icon} alt={w.info.name} />
               )}
               <span>{w.info.name}</span>
-              {isActive && matches && <em className="pickerActive">aktif</em>}
+              {isActive && matches && <em className="pickerActive">active</em>}
             </button>
           );
         })}
-        {busy === "connect" && <div className="meta" style={{ margin: "8px 0 0" }}>Menghubungkan wallet…</div>}
+        {busy === "connect" && <div className="meta" style={{ margin: "8px 0 0" }}>Connecting wallet…</div>}
       </div>
     </div>
   );

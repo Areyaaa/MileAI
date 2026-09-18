@@ -1,11 +1,11 @@
-// Atom UI bersama (dipakai dashboard payer & worker): badge status, confidence
-// radial, alasan AI expand/collapse, satu baris milestone, ikon, simbol token.
+// Shared UI atoms (used by payer & worker dashboards): status badge, confidence
+// radial, AI reason expand/collapse, one milestone row, icons, token symbol.
 import { useEffect, useState } from "react";
 import * as chain from "../lib/contract";
 
 export const fmtAddr = (a) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : "-");
 
-// ---------------------- ikon (inline, kecil) ----------------------
+// ---------------------- icons (inline, small) ----------------------
 const Icon = ({ d }) => (
   <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
     strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -45,7 +45,7 @@ export function CircularConfidence({ value, size = 54, stroke = 5 }) {
   );
 }
 
-// ---------------------- badge status ----------------------
+// ---------------------- status badge ----------------------
 export function StatusBadge({ label }) {
   const t = label || "";
   let cls = "st-Pending";
@@ -58,7 +58,7 @@ export function StatusBadge({ label }) {
   return <span className={`status-badge ${cls}`}>{t}</span>;
 }
 
-// ---------------------- alasan AI (expand/collapse) ----------------------
+// ---------------------- AI reason (expand/collapse) ----------------------
 export function ReasonExpander({ reason }) {
   const [open, setOpen] = useState(false);
   if (!reason) return null;
@@ -68,14 +68,14 @@ export function ReasonExpander({ reason }) {
       <span className={open ? undefined : "clamp2"}>{reason}</span>
       {long && (
         <button className="link" onClick={() => setOpen((v) => !v)}>
-          {open ? "Tutup" : "Lihat alasan lengkap"}
+          {open ? "Close" : "View full reason"}
         </button>
       )}
     </div>
   );
 }
 
-// ---------------------- simbol token (best-effort) ----------------------
+// ---------------------- token symbol (best-effort) ----------------------
 const symCache = {};
 export function TokenSymbol({ provider, token }) {
   const [sym, setSym] = useState(null);
@@ -103,11 +103,11 @@ export function TokenSymbol({ provider, token }) {
   return sym || `${token.slice(0, 6)}…`;
 }
 
-// ---------------------- satu milestone ----------------------
+// ---------------------- one milestone row ----------------------
 export function MilestoneRow({ escrowId, m, ai, renderActions }) {
   const ver = (ai && ai.ver) || {};
   const display = (ai && ai.display) || chain.STATUS[m.status] || String(m.status);
-  const review = display === "Perlu Review Manual";
+  const review = display === "Manual Review Needed";
   const showConf = ver.confidence !== undefined;
   const tx = ver.tx_hash;
 
@@ -126,15 +126,15 @@ export function MilestoneRow({ escrowId, m, ai, renderActions }) {
         </div>
       </div>
       <div className="meta" style={{ marginTop: 8 }}>
-        <b>Kriteria:</b> {m.proofRequirement}
+        <b>Criteria:</b> {m.proofRequirement}
       </div>
       {m.proofText && (
-        <div className="meta"><b>Bukti:</b> {m.proofText}</div>
+        <div className="meta"><b>Proof:</b> {m.proofText}</div>
       )}
       <ReasonExpander reason={ver.reason} />
       {tx && <div className="ok">Release tx: {tx.slice(0, 22)}…</div>}
       {ai && ai.backendError && (
-        <div className="error">AI verdict tidak tersedia (backend off): {ai.backendError}</div>
+        <div className="error">AI verdict unavailable (backend off): {ai.backendError}</div>
       )}
       {renderActions && (
         <div className="row" style={{ marginTop: 10 }}>
