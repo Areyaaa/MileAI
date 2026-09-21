@@ -166,6 +166,9 @@ export function AnimatedNumber({ value, decimals = 2, duration = 900, prefix = "
   const ref = useRef(null);
   const [disp, setDisp] = useState(0);
   const started = useRef(false);
+  const dispRef = useRef(0);
+  const fromRef = useRef(0);
+  dispRef.current = disp;
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -173,15 +176,18 @@ export function AnimatedNumber({ value, decimals = 2, duration = 900, prefix = "
       setDisp(value);
       return;
     }
+    fromRef.current = dispRef.current;
+    started.current = false;
     const ob = new IntersectionObserver(
       ([e]) => {
         if (e.isIntersecting && !started.current) {
           started.current = true;
+          const from = fromRef.current;
           const t0 = performance.now();
           const tick = (t) => {
             const p = Math.min(1, (t - t0) / duration);
             const eased = 1 - Math.pow(1 - p, 3);
-            setDisp(value * eased);
+            setDisp(from + (value - from) * eased);
             if (p < 1) requestAnimationFrame(tick);
           };
           requestAnimationFrame(tick);

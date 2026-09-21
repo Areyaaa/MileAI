@@ -48,6 +48,12 @@ export async function fetchMilestoneStatus(escrowId, milestoneIndex) {
   return jget(`${API_BASE}/escrows/${escrowId}/milestones/${milestoneIndex}/status`);
 }
 
+// Batch: semua verdict AI dari SQLite dalam 1 panggilan (tanpa RPC di backend).
+// Dipakai dashboard supaya tidak perlu 1 HTTP call per milestone.
+export async function fetchAllVerifications() {
+  return jget(`${API_BASE}/verify/all`);
+}
+
 // Endpoint backend adalah POST (dependencies token). Diperbaiki dari GET
 // yang sebelumnya tidak match method dan menghasilkan 405.
 export async function triggerVerification(escrowId, milestoneIndex) {

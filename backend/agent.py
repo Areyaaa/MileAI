@@ -76,10 +76,10 @@ class AIAgent:
                 escrow_id,
                 milestone_index,
                 action="error",
-                reason=f"LLM error: {exc}",
+                reason=f"LLM error: {ai._redact(exc)}",
                 proof_text=proof,
             )
-            return self._result(escrow_id, milestone_index, "error", confidence=None, reason=str(exc))
+            return self._result(escrow_id, milestone_index, "error", confidence=None, reason=ai._redact(str(exc)))
 
         # --- 2. sanity guard (anti prompt-injection sederhana) ---
         if ai.sanity_guard(confidence, proof):

@@ -92,6 +92,24 @@ def get_verification(escrow_id: int, milestone_index: int) -> dict | None:
         conn.close()
 
 
+def get_all_verifications() -> list[dict]:
+    """Semua verdict AI (untuk endpoint batch GET /verify/all).
+
+    Read-only dari SQLite, tanpa RPC — dipakai dashboard frontend supaya
+    tidak perlu 1 panggilan HTTP per milestone.
+    """
+    conn = get_conn()
+    try:
+        rows = conn.execute(
+            "SELECT escrow_id, milestone_index, action, confidence, reason, "
+            "proof_text, tx_hash, updated_at "
+            "FROM verifications ORDER BY escrow_id, milestone_index"
+        ).fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+
 def already_verified_with(escrow_id: int, milestone_index: int, proof_text: str) -> bool:
     """True kalau bukti yang sama sudah pernah dinilai dengan hasil final.
 

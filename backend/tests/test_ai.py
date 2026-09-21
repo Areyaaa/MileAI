@@ -148,8 +148,10 @@ class TestLlmProviders:
         assert kwargs["json"]["messages"][1] == {"role": "user", "content": "usr"}
 
     def test_call_groq_http_error_di_raise(self, monkeypatch):
+        monkeypatch.setattr(ai, "LLM_MAX_RETRIES", 0)
+        monkeypatch.setattr(ai, "LLM_RETRY_DELAY", 0)
         self._patch_post(monkeypatch, {}, status=500)
-        with pytest.raises(httpx.HTTPStatusError):
+        with pytest.raises(ai.LLMError):
             ai._call_groq("KEY", "m", "s", "u")
 
     def test_call_gemini_ambil_candidates(self, monkeypatch):
@@ -164,6 +166,77 @@ class TestLlmProviders:
         self._patch_post(monkeypatch, {"promptFeedback": {"blockReason": "SAFETY"}})
         with pytest.raises(ValueError):
             ai._call_gemini("KEY", "m", "s", "u")
+
+
+class TestRetryDanSanitasi:
+    """Retry 503/429 transien + pesan error yang tidak bocorkan API key."""
+
+    def test_503_di_retry_hingga_sukses(self, monkeypatch):
+        monkeypatch.setattr(ai, "LLM_MAX_RETRIES", 3)
+        monkeypatch.setattr(ai, "LLM_RETRY_DELAY", 0)
+        calls = []
+
+        def _post(url, **kwargs):
+            calls.append(1)
+            if len(calls) < 3:
+                return FakeResp({}, status=503)
+            return FakeResp({
+                "candidates": [{"content": {"parts": [
+                    {"text": '{"confidence": 80, "reason": "ok"}'}]}}],
+            })
+
+        monkeypatch.setattr(ai.httpx, "post", _post)
+        raw = ai._call_gemini("KEY", "m", "s", "u")
+        assert "80" in raw
+        assert len(calls) == 3  # 2 kali 503, lalu sukses
+
+    def test_503_mengangkat_llmerror_tanpa_key_dan_url(self, monkeypatch):
+        monkeypatch.setattr(ai, "LLM_MAX_RETRIES", 0)
+        monkeypatch.setattr(ai, "LLM_RETRY_DELAY", 0)
+
+        def _post(url, **kwargs):
+            return FakeResp({}, status=503)
+
+        monkeypatch.setattr(ai.httpx, "post", _post)
+        with pytest.raises(ai.LLMError) as excinfo:
+            ai._call_gemini("RAHASIA-KEY-BOCOR", "m", "s", "u")
+        msg = str(excinfo.value)
+        assert "RAHASIA-KEY-BOCOR" not in msg
+        assert "generateContent" not in msg  # URL query dengan key tidak boleh tampil
+
+    def test_request_error_juga_di_retry(self, monkeypatch):
+        monkeypatch.setattr(ai, "LLM_MAX_RETRIES", 3)
+        monkeypatch.setattr(ai, "LLM_RETRY_DELAY", 0)
+        calls = []
+
+        def _post(url, **kwargs):
+            calls.append(1)
+            if len(calls) < 2:
+                raise httpx.ConnectError("koneksi putus", request=None)
+            return FakeResp({
+                "candidates": [{"content": {"parts": [
+                    {"text": '{"confidence": 90, "reason": "baik"}'}]}}],
+            })
+
+        monkeypatch.setattr(ai.httpx, "post", _post)
+        assert "90" in ai._call_gemini("KEY", "m", "s", "u")
+        assert len(calls) == 2
+
+    def test_url_tidak_pernah_dipakai_di_pesan_error_http(self, monkeypatch):
+        """Cek `_call_gemini` tidak lagi menyisipkan str(HTTPStatusError)
+        (yang berisi URL penuh + key) ke pesan yang disimpan DB."""
+        monkeypatch.setattr(ai, "LLM_MAX_RETRIES", 0)
+        monkeypatch.setattr(ai, "LLM_RETRY_DELAY", 0)
+
+        def _post(url, **kwargs):
+            return FakeResp({}, status=502)
+
+        monkeypatch.setattr(ai.httpx, "post", _post)
+        with pytest.raises(ai.LLMError) as excinfo:
+            ai._call_gemini("KEY-BOCOR", "m", "s", "u")
+        msg = str(excinfo.value)
+        assert "Server error" not in msg  # format lama HTTPStatusError
+        assert "KEY-BOCOR" not in msg
 
     def test_verify_llm_route_groq(self, monkeypatch):
         monkeypatch.setattr(config, "LLM_API_KEY", "KEY")

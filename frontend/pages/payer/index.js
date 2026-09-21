@@ -2,57 +2,52 @@
 // Payer Dashboard — all escrows CREATED by this wallet.
 //
 // - Summary stats (total escrows, locked funds, released funds, needs review)
-// - One card per escrow: project, recipient, token, every milestone with
-//   on-chain status + confidence & reason from the backend, manual approve
-//   button (when "Manual Review Needed"), re-verification, and refund.
+// - One compact card per escrow: escrow id, project name, recipient, token,
+//   plus per-milestone summary (status badge + AI confidence score + milestone
+//   token amount) — ringkas. Clicking the card opens PayerEscrowModal — a
+//   scrollable popup with ALL milestones + actions (approve/re-verify/refund).
 // - Auto refresh every ±15 seconds (syncs with the backend AI agent poll).
 // ============================================================================
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import Layout from "../../components/Layout";
-import { MilestoneRow, TokenSymbol, fmtAddr } from "../../components/bits";
+import PayerEscrowModal from "../../components/PayerEscrowModal";
+import { StatusBadge, TokenSymbol, fmtAddr } from "../../components/bits";
 import { AnimatedNumber } from "../../components/fx";
 import { useWallet } from "../../lib/wallet";
 import * as chain from "../../lib/contract";
 import * as api from "../../lib/api";
 import { loadAllEscrows, byPayer } from "../../lib/escrows";
 import { getProjects } from "../../lib/projects";
+import { addTxLog } from "../../lib/txlog";
 
-function PayerEscrowCard({ escrow, ai, projectName, provider, busy, onApprove, onRecheck, onRefund }) {
-  const { id, data } = escrow;
+function PayerEscrowCard({ escrow, ai, projectName, provider, onOpen }) {
+  const { data } = escrow;
   return (
-    <section className="card">
+    <section className="card escrowCardBtn" onClick={onOpen}
+      role="button" tabIndex={0}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(); } }}>
       <header className="escrowHead">
-        <h3>Escrow #{id} · {projectName || "Unnamed project"}</h3>
-        <button className="btn btn-danger sm" onClick={() => onRefund(id)}
-          disabled={Boolean(busy) || data.refunded}>
-          Refund
-        </button>
+        <h3>Escrow #{escrow.id} · {projectName || "Unnamed project"}</h3>
       </header>
       <div className="user-grid">
         <div>Recipient: <span>{fmtAddr(data.recipient)}</span></div>
         <div>Token: <span><TokenSymbol provider={provider} token={data.token} /></span></div>
-        <div>Refunded: <span>{String(data.refunded)}</span></div>
       </div>
-      {data.milestones.map((m) => (
-        <MilestoneRow key={m.index} escrowId={id} m={m} ai={ai[m.index]}
-          renderActions={({ review, submitted }) => (
-            <>
-              {review && (
-                <button className="btn btn-ghost sm" onClick={() => onApprove(id, m.index)}
-                  disabled={Boolean(busy)}>
-                  Approve Manual
-                </button>
-              )}
-              {submitted && (
-                <button className="btn btn-ghost sm" onClick={() => onRecheck(id, m.index)}
-                  disabled={Boolean(busy)}>
-                  Re-verifikasi
-                </button>
-              )}
-            </>
-          )} />
-      ))}
+      {data.milestones.map((m) => {
+        const a = (ai || {})[m.index] || {};
+        const ver = a.ver || {};
+        const display = a.display || chain.STATUS[m.status] || String(m.status);
+        const conf = ver.confidence !== undefined ? Math.round(Number(ver.confidence) || 0) : null;
+        return (
+          <div className="msMini" key={m.index}>
+            <span className="msMiniIdx">M{m.index}</span>
+            <StatusBadge label={display} />
+            {conf !== null && <span className="msMiniConf" title={`Confidence ${conf}/100`}>◍ {conf}</span>}
+            <span className="msMiniAmt">{m.amountEther} token</span>
+          </div>
+        );
+      })}
     </section>
   );
 }
@@ -77,16 +72,19 @@ export default function PayerDashboard() {
   const [projects, setProjects] = useState({});
   const [loading, setLoading] = useState(false);
   const [note, setNote] = useState("");
+  const [count, setCount] = useState(0);
+  const [openEscrowId, setOpenEscrowId] = useState(null); // escrow id yang sedang dibuka popupnya | null
 
   const load = async () => {
     if (!provider) return;
     setLoading(true);
     setError(null);
     try {
-      const { list, ai, note: n } = await loadAllEscrows(provider);
+      const { list, ai, note: n, count: c } = await loadAllEscrows(provider);
       setEscrows(list);
       setAiData(ai);
       setNote(n);
+      setCount(c);
       setProjects(getProjects());
       pushLog(`Escrow data loaded (${list.length} on-chain).`);
     } catch (e) {
@@ -113,9 +111,14 @@ export default function PayerDashboard() {
   const stats = useMemo(() => {
     let locked = 0, released = 0, pending = 0, submitted = 0, review = 0;
     for (const e of mine) {
+      // Dana "terkunci" = yang masih ada di kontrak: escrow belum refund,
+      // dan milestone tersebut belum Released.
+      const escrowActive = !e.data.refunded;
       for (const m of e.data.milestones) {
         const amt = parseFloat(m.amountEther) || 0;
-        locked += amt;
+        if (escrowActive && m.status !== chain.STATUS_RELEASED) {
+          locked += amt;
+        }
         const ai = aiData[e.id] && aiData[e.id][m.index];
         const disp = (ai && ai.display) || chain.STATUS[m.status];
         if (disp.includes("Released")) released += amt;
@@ -134,6 +137,7 @@ export default function PayerDashboard() {
       const signer = await requireSigner();
       const rc = await chain.manualApprove(signer, escrowId, idx);
       pushLog(`Manual approve escrow ${escrowId} m${idx}: ${rc.hash}`);
+      addTxLog("approve", { hash: rc.hash, escrowId, milestoneIndex: idx });
       await load();
     } catch (e) {
       setError((e && e.message) || String(e));
@@ -163,6 +167,7 @@ export default function PayerDashboard() {
       const signer = await requireSigner();
       const rc = await chain.refundEscrow(signer, escrowId);
       pushLog(`Refund escrow ${escrowId}: ${rc.hash}`);
+      addTxLog("refund", { hash: rc.hash, escrowId });
       await load();
     } catch (e) {
       setError((e && e.message) || String(e));
@@ -170,6 +175,11 @@ export default function PayerDashboard() {
       setBusy("");
     }
   };
+
+  // Popup penuh: resolve escrow yang sedang dibuka (+ AI verdict per milestone).
+  const openEscrow = openEscrowId
+    ? (escrows.find((e) => String(e.id) === String(openEscrowId)) || null)
+    : null;
 
   return (
     <Layout role="payer" title="Dashboard Payer"
@@ -195,7 +205,13 @@ export default function PayerDashboard() {
       )}
       {!loading && mine.length === 0 && (
         <div className="card empty">
-          No escrows for this wallet yet. Create your first escrow via the <b>New Escrow</b> menu.
+          No escrows for this wallet yet.
+          <div className="meta" style={{ marginTop: 8 }}>
+            Connected wallet: <b>{fmtAddr(account) || "—"}</b> · {count} escrow(s) on-chain.
+            The payer dashboard only shows escrows whose <b>payer</b> is the
+            connected wallet — switch to the payer wallet to see them. Or create
+            a new one via the <b>New Escrow</b> menu.
+          </div>
         </div>
       )}
 
@@ -203,9 +219,16 @@ export default function PayerDashboard() {
         {mine.map((e) => (
           <PayerEscrowCard key={e.id} escrow={e} ai={aiData[e.id] || {}}
             projectName={projects[String(e.id)]} provider={provider}
-            busy={busy} onApprove={onApprove} onRecheck={onRecheck} onRefund={onRefund} />
+            onOpen={() => setOpenEscrowId(String(e.id))} />
         ))}
       </div>
+
+      {openEscrow && (
+        <PayerEscrowModal escrow={openEscrow} ai={aiData[openEscrow.id] || {}}
+          projectName={projects[String(openEscrow.id)]} provider={provider}
+          busy={busy} onApprove={onApprove} onRecheck={onRecheck} onRefund={onRefund}
+          onClose={() => setOpenEscrowId(null)} />
+      )}
     </Layout>
   );
 }

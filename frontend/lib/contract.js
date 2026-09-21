@@ -17,6 +17,15 @@ export const TARGET_CHAIN_ID = parseInt(
 );
 export const TARGET_CHAIN_HEX = "0x" + TARGET_CHAIN_ID.toString(16);
 
+// BSCScan base untuk menampilkan tautan tx/address di dashboard. BSC Testnet default.
+export const EXPLORER_URL =
+  process.env.NEXT_PUBLIC_EXPLORER_URL ||
+  (TARGET_CHAIN_ID === 97 ? "https://testnet.bscscan.com" : "");
+export const explorerTxUrl = (tx) =>
+  EXPLORER_URL ? `${EXPLORER_URL}/tx/${tx}` : "";
+export const explorerAddressUrl = (addr) =>
+  EXPLORER_URL ? `${EXPLORER_URL}/address/${addr}` : "";
+
 const ANVIL_RPC = "http://127.0.0.1:8546";
 const BSC_TESTNET_RPC =
   "https://data-seed-prebsc-1-s1.binance.org:8545";
@@ -43,6 +52,13 @@ export const ERC20_ABI = [
   "function symbol() view returns (string)",
 ];
 
+// TestToken.mint public (no access control) — dipakai tombol "Get Mile" untuk
+// mencetak token test ke wallet yang terhubung. Hanya untuk token test.
+export const TESTTOKEN_ABI = [
+  ...ERC20_ABI,
+  "function mint(address to, uint256 amount)",
+];
+
 export const STATUS = {
   0: "Pending",
   1: "Submitted",
@@ -50,7 +66,9 @@ export const STATUS = {
   3: "Disputed",
 };
 
+export const STATUS_PENDING = 0;
 export const STATUS_SUBMITTED = 1;
+export const STATUS_RELEASED = 2;
 
 export function hasMetaMask() {
   return typeof window !== "undefined" && !!window.ethereum;
@@ -121,14 +139,9 @@ export async function approveToken(signer, tokenAddress, amountEther) {
   return tx.wait();
 }
 
-// Infinite approve (type(uint256).max) — one approve, no need to re-approve
-// each time the milestone amount changes. A common recommendation in escrow UIs
-// because the payer holds their own tx keys; the contract still zeroes the
-// allowance via SafeERC20 on every escrow creation (OpenZeppelin).
-export async function approveTokenInfinite(signer, tokenAddress) {
-  const token = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
-  const MaxUint256 = ethers.MaxUint256;
-  const tx = await token.approve(CONTRACT_ADDRESS, MaxUint256);
+export async function mintTestToken(signer, tokenAddress, amountEther) {
+  const token = new ethers.Contract(tokenAddress, TESTTOKEN_ABI, signer);
+  const tx = await token.mint(await signer.getAddress(), ethers.parseEther(amountEther));
   return tx.wait();
 }
 

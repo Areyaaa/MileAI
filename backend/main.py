@@ -8,6 +8,7 @@ untuk autoRelease.
 Endpoints:
 - GET /health
 - GET /escrows/{id}/milestones/{index}/status  (on-chain + hasil AI dari SQLite)
+- GET /verify/all  (semua verdict AI sekaligus dari SQLite, tanpa RPC — buat dashboard)
 - POST /agent/trigger/{escrow_id}/{milestone_index}  (verify manual, tanpa tunggu polling)
 """
 
@@ -24,17 +25,18 @@ from fastapi.middleware.cors import CORSMiddleware
 import agent as agent_mod
 import config
 from contract_client import ContractClient, ContractError
-from db import get_verification, init_db
+from db import get_all_verifications, get_verification, init_db
 
 log = logging.getLogger("mileai")
 
 STATUS_NAMES = {0: "Pending", 1: "Submitted", 2: "Released", 3: "Disputed"}
-# Tampilan untuk status viewer (gabungan on-chain + hasil AI).
+# Tampilan untuk status viewer (gabungan on-chain + hasil AI). Bahasa Inggris
+# konsisten dengan frontend (frontend/lib/escrows.js ACTION_EN) & /verify/all.
 ACTION_LABEL = {
     "verified_auto": "Released by AI (auto)",
-    "manual_review": "Perlu Review Manual",
-    "insufficient": "Bukti Belum Cukup",
-    "error": "Error Verifikasi",
+    "manual_review": "Manual Review Needed",
+    "insufficient": "Insufficient Evidence",
+    "error": "Verification Error",
 }
 
 
@@ -127,6 +129,8 @@ def health():
 
 @app.get("/escrows/{escrow_id}/milestones/{milestone_index}/status")
 def milestone_status(escrow_id: int, milestone_index: int):
+    if escrow_id < 0 or milestone_index < 0:
+        raise HTTPException(status_code=404, detail="escrow_id / milestone_index tidak boleh negatif.")
     agent = _require_agent()
     client = agent.client
     try:
@@ -165,9 +169,37 @@ def milestone_status(escrow_id: int, milestone_index: int):
     }
 
 
+@app.get("/verify/all")
+def verify_all():
+    """Semua verdict AI dari SQLite sekaligus (tanpa RPC / tanpa butuh chain).
+
+    Frontend dashboard membaca ini sekali per refresh, menggantikan
+    N panggilan /escrows/{id}/milestones/{index}/status per milestone.
+    Bisa dipanggil walau agent/chain belum terkoneksi.
+    """
+    rows = get_all_verifications()
+    return {
+        "count": len(rows),
+        "verifications": [
+            {
+                "escrow_id": r["escrow_id"],
+                "milestone_index": r["milestone_index"],
+                "action": r["action"],
+                "confidence": r["confidence"],
+                "reason": r["reason"],
+                "tx_hash": r["tx_hash"],
+                "updated_at": r["updated_at"],
+            }
+            for r in rows
+        ],
+    }
+
+
 @app.post("/agent/trigger/{escrow_id}/{milestone_index}", dependencies=[Depends(_require_agent_token)])
 async def trigger_verification(escrow_id: int, milestone_index: int):
     """Paksa verifikasi sekarang (tanpa menunggu siklus polling) — untuk testing."""
+    if escrow_id < 0 or milestone_index < 0:
+        raise HTTPException(status_code=404, detail="escrow_id / milestone_index tidak boleh negatif.")
     agent = _require_agent()
     try:
         result = await asyncio.to_thread(agent.verify_one, escrow_id, milestone_index, True)

@@ -52,7 +52,7 @@ class TestStatusViewer:
             assert body["verification"]["confidence"] == 70
             assert "ragu" in body["verification"]["reason"]
             # status on-chain Submitted + ada verification -> label dari DB
-            assert body["display_status"] == "Perlu Review Manual"
+            assert body["display_status"] == "Manual Review Needed"
 
     def test_status_milestone_tidak_ada_404_dengan_detail(self, api):
         with api["TestClient"](api["app"]) as client:
@@ -65,6 +65,34 @@ class TestStatusViewer:
             resp = client.get("/escrows/999/milestones/0/status")
             assert resp.status_code == 404
             assert resp.json()["detail"]
+
+
+class TestVerifyAll:
+    def test_all_mengembalikan_semua_serdict(self, api):
+        db_module.upsert_verification(
+            0, 0, "manual_review", confidence=70, reason="AI ragu", proof_text="p"
+        )
+        db_module.upsert_verification(
+            2, 1, "verified_auto", confidence=95, reason="bukti jelas",
+            tx_hash="0xabc",
+        )
+        with api["TestClient"](api["app"]) as client:
+            resp = client.get("/verify/all")
+            assert resp.status_code == 200
+            body = resp.json()
+            assert body["count"] == 2
+            rows = {(r["escrow_id"], r["milestone_index"]): r for r in body["verifications"]}
+            assert rows[(0, 0)]["action"] == "manual_review"
+            assert rows[(0, 0)]["confidence"] == 70
+            assert rows[(2, 1)]["action"] == "verified_auto"
+            assert rows[(2, 1)]["tx_hash"] == "0xabc"
+
+    def test_all_saat_tidak_ada_verdict_200_kosong(self, api):
+        # Tidak butuh chain terhubung / FakeClient escrow — murni baca SQLite.
+        with api["TestClient"](api["app"]) as client:
+            resp = client.get("/verify/all")
+            assert resp.status_code == 200
+            assert resp.json() == {"count": 0, "verifications": []}
 
 
 class TestAgentTrigger:

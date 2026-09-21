@@ -181,7 +181,7 @@ contract MilestoneEscrow is AccessControl, ReentrancyGuard {
         if (e.refunded) revert AlreadyRefunded();
 
         uint256 n = e.milestones.length;
-        uint256 remaining;
+        uint256 remaining = 0;
         for (uint256 i = 0; i < n; ++i) {
             if (e.milestones[i].status != MilestoneStatus.Released) {
                 remaining += e.milestones[i].amount;

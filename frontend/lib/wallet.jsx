@@ -13,6 +13,19 @@ import { useWalletProviders } from "./useWalletProviders";
 
 const WalletContext = createContext(null);
 
+// Simpan wallet pilihan di localStorage supaya setelah refresh halaman,
+// app bisa auto-reconnect ke wallet yang sama (tanpa harus pilih ulang).
+const STORE_KEY = "mileai:wallet";
+const storeWallet = (rdns) => {
+  try { window.localStorage.setItem(STORE_KEY, rdns); } catch { /* ignore */ }
+};
+const storedWallet = () => {
+  try { return window.localStorage.getItem(STORE_KEY); } catch { return null; }
+};
+const clearStoredWallet = () => {
+  try { window.localStorage.removeItem(STORE_KEY); } catch { /* ignore */ }
+};
+
 export function useWallet() {
   const ctx = useContext(WalletContext);
   if (!ctx) throw new Error("useWallet must be used inside <WalletProvider>.");
@@ -57,11 +70,12 @@ export function WalletProvider({ children }) {
       setError(null);
       setBusy("connect");
       const { provider: p, address } = await chain.connectWallet(walletProvider);
+      const info = (walletProviders.find((w) => w.provider === walletProvider) || {}).info;
+      storeWallet((info && info.rdns) || "");
       setActiveProvider(walletProvider);
       setProvider(p);
       setAccount(address);
       await checkChain(p);
-      const info = (walletProviders.find((w) => w.provider === walletProvider) || {}).info;
       pushLog(
         `Wallet connected: ${(info && info.name) || "wallet"} · ${address.slice(0, 6)}…${address.slice(-4)}`
       );
@@ -110,6 +124,7 @@ export function WalletProvider({ children }) {
   }
 
   function disconnect() {
+    clearStoredWallet();
     setProvider(null);
     setAccount(null);
     setActiveProvider(null);
@@ -144,6 +159,19 @@ export function WalletProvider({ children }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [provider]);
+
+  // Auto-reconnect ke wallet yang sama setelah halaman di-refresh: begitu
+  // wallet extension announce (eip6963:announceProvider), kalau ada rdns yang
+  // tersimpan dan belum ada koneksi aktif, langsung connect lagi.
+  useEffect(() => {
+    if (provider || busy === "connect" || walletProviders.length === 0) return undefined;
+    const rdns = storedWallet();
+    if (!rdns) return undefined;
+    const match = walletProviders.find((w) => w.info.rdns === rdns);
+    if (!match) return undefined;
+    connectNow(match.provider);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [walletProviders]);
 
   return (
     <WalletContext.Provider

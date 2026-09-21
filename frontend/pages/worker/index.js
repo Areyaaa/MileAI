@@ -2,43 +2,54 @@
 // Worker Dashboard — all escrows where this wallet is the recipient.
 //
 // - Stats: total escrows, total milestone funds, funds already RELEASED (token)
-// - "Fund release notifications": list of Released milestones -> how much came
-//   in + tx hash.
-// - One card per escrow: project, payer, token, per-milestone progress
-//   (status + confidence + AI reason). For Pending milestones there's a
-//   Submit Proof button (goes straight to the submit page, escrow prefilled).
+// - One compact card per escrow (same as payer): escrow id, project name,
+//   payer, token, plus per-milestone summary (status badge + AI confidence
+//   score + milestone token amount). Each `.msMini` row is clickable and opens
+//   a detail popup (MilestoneModal); for Pending milestones the popup has a
+//   Submit Proof button that routes to the submit page prefilled (escrow +
+//   milestone) — the submit function stays on /worker/submit.
 // - Auto refresh every ±15 seconds (syncs with the AI agent poll).
 // ============================================================================
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import Layout from "../../components/Layout";
-import { MilestoneRow, TokenSymbol, fmtAddr } from "../../components/bits";
+import MilestoneModal from "../../components/MilestoneModal";
+import { StatusBadge, TokenSymbol, fmtAddr } from "../../components/bits";
 import { AnimatedNumber } from "../../components/fx";
 import { useWallet } from "../../lib/wallet";
 import * as chain from "../../lib/contract";
 import { loadAllEscrows, byRecipient } from "../../lib/escrows";
 import { getProjects } from "../../lib/projects";
 
-function WorkerEscrowCard({ escrow, ai, projectName, provider, pendingCount, onGoSubmit }) {
+function WorkerEscrowCard({ escrow, ai, projectName, provider, onOpenMilestone }) {
   const { id, data } = escrow;
   return (
-    <section className="card">
+    <section className="card escrowCardBtn">
       <header className="escrowHead">
         <h3>Escrow #{id} · {projectName || "Unnamed project"}</h3>
-        {pendingCount > 0 && (
-          <button className="btn btn-ghost sm" onClick={() => onGoSubmit(id)}>
-            Submit Proof
-          </button>
-        )}
       </header>
       <div className="user-grid">
         <div>Payer: <span>{fmtAddr(data.payer)}</span></div>
         <div>Token: <span><TokenSymbol provider={provider} token={data.token} /></span></div>
-        <div>Progress: <span>{data.milestones.filter((m) => m.status === 2).length}/{data.milestones.length} released</span></div>
+        <div>Progress: <span>{data.milestones.filter((m) => m.status === chain.STATUS_RELEASED).length}/{data.milestones.length} released</span></div>
       </div>
-      {data.milestones.map((m) => (
-        <MilestoneRow key={m.index} escrowId={id} m={m} ai={ai[m.index]} />
-      ))}
+      {data.milestones.map((m) => {
+        const a = (ai || {})[m.index] || {};
+        const ver = a.ver || {};
+        const display = a.display || chain.STATUS[m.status] || String(m.status);
+        const conf = ver.confidence !== undefined ? Math.round(Number(ver.confidence) || 0) : null;
+        return (
+          <div className="msMini msMiniClick" key={m.index}
+            role="button" tabIndex={0}
+            onClick={() => onOpenMilestone(m)}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpenMilestone(m); } }}>
+            <span className="msMiniIdx">M{m.index}</span>
+            <StatusBadge label={display} />
+            {conf !== null && <span className="msMiniConf" title={`Confidence ${conf}/100`}>◍ {conf}</span>}
+            <span className="msMiniAmt">{m.amountEther} token</span>
+          </div>
+        );
+      })}
     </section>
   );
 }
@@ -63,16 +74,19 @@ export default function WorkerDashboard() {
   const [projects, setProjects] = useState({});
   const [loading, setLoading] = useState(false);
   const [note, setNote] = useState("");
+  const [count, setCount] = useState(0);
+  const [openMs, setOpenMs] = useState(null); // { escrowId, index } | null
 
   const load = async () => {
     if (!provider) return;
     setLoading(true);
     setError(null);
     try {
-      const { list, ai, note: n } = await loadAllEscrows(provider);
+      const { list, ai, note: n, count: c } = await loadAllEscrows(provider);
       setEscrows(list);
       setAiData(ai);
       setNote(n);
+      setCount(c);
       setProjects(getProjects());
       pushLog(`Escrow data loaded (${list.length} on-chain).`);
     } catch (e) {
@@ -113,23 +127,13 @@ export default function WorkerDashboard() {
     return { count: mine.length, msCount, received, pending, review, submitted: sub };
   }, [mine, aiData]);
 
-  // Fund release notifications (from AI autoRelease / manual approve).
-  const releases = useMemo(() => {
-    const out = [];
-    for (const e of mine) {
-      for (const m of e.data.milestones) {
-        const ai = aiData[e.id] && aiData[e.id][m.index];
-        const disp = (ai && ai.display) || chain.STATUS[m.status];
-        if (disp.includes("Released")) {
-          out.push({ escrowId: e.id, index: m.index, amount: m.amountEther, tx: ai.ver.tx_hash });
-        }
-      }
-    }
-    return out.sort((a, b) => (a.tx || "").localeCompare(b.tx || ""));
-  }, [mine, aiData]);
-
-  const pendingCount = (escrowId) =>
-    (escrows.find((e) => e.id === escrowId) || {}).data?.milestones?.filter((m) => m.status === 0).length || 0;
+  // Popup detail: resolve which escrow + milestone + AI verdict is open.
+  const openEscrow = openMs
+    ? (escrows.find((e) => String(e.id) === String(openMs.escrowId)) || null)
+    : null;
+  const openMilestone = openEscrow && openMs
+    ? (openEscrow.data.milestones.find((m) => String(m.index) === String(openMs.index)) || null)
+    : null;
 
   return (
     <Layout role="worker" title="Worker Dashboard"
@@ -149,32 +153,33 @@ export default function WorkerDashboard() {
       )}
       {!loading && mine.length === 0 && (
         <div className="card empty">
-          No escrows set this wallet as the recipient yet. Ask a payer to create
-          an escrow with your address.
+          No escrows set this wallet as the recipient yet.
+          <div className="meta" style={{ marginTop: 8 }}>
+            Connected wallet: <b>{fmtAddr(account) || "—"}</b> · {count} escrow(s) on-chain.
+            The worker dashboard only shows escrows whose <b>recipient</b> is the
+            connected wallet — switch to the recipient wallet to see them.
+          </div>
         </div>
-      )}
-
-      {releases.length > 0 && (
-        <section className="card">
-          <h3 style={{ margin: "0 0 8px" }}>Fund release notifications</h3>
-          {releases.map((r) => (
-            <div className="releaseRow" key={`${r.escrowId}-${r.index}`}>
-              <span className="releaseAmount">+{r.amount} token</span>
-              <span className="meta">
-                Milestone {r.index} · Escrow #{r.escrowId} {r.tx && <>· tx {r.tx.slice(0, 12)}…</>}
-              </span>
-            </div>
-          ))}
-        </section>
       )}
 
       <div className="grid">
         {mine.map((e) => (
           <WorkerEscrowCard key={e.id} escrow={e} ai={aiData[e.id] || {}}
             projectName={projects[String(e.id)]} provider={provider}
-            pendingCount={pendingCount(e.id)} onGoSubmit={(id) => router.push(`/worker/submit?escrow=${id}`)} />
+            onOpenMilestone={(m) => setOpenMs({ escrowId: e.id, index: m.index })} />
         ))}
       </div>
+
+      {openEscrow && openMilestone && (
+        <MilestoneModal escrow={openEscrow} m={openMilestone}
+          ai={aiData[openEscrow.id] && aiData[openEscrow.id][openMilestone.index]}
+          projectName={projects[String(openEscrow.id)]} provider={provider}
+          onClose={() => setOpenMs(null)}
+          onGoSubmit={(escrowId, index) => {
+            setOpenMs(null);
+            router.push(`/worker/submit?escrow=${escrowId}&milestone=${index}`);
+          }} />
+      )}
     </Layout>
   );
 }

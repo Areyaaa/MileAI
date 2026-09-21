@@ -21,6 +21,9 @@ export const IconCreate = () => (
 export const IconSubmit = () => (
   <Icon d={<><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="8" y1="13" x2="16" y2="13" /><line x1="8" y1="17" x2="13" y2="17" /></>} />
 );
+export const IconTx = () => (
+  <Icon d={<><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></>} />
+);
 export const IconWallet = () => (
   <Icon d={<><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" /><path d="M3 5v14a2 2 0 0 0 2 2h16v-5" /><path d="M18 12a2 2 0 0 0 0 4h4v-4Z" /></>} />
 );
@@ -104,18 +107,33 @@ export function TokenSymbol({ provider, token }) {
 }
 
 // ---------------------- one milestone row ----------------------
-export function MilestoneRow({ escrowId, m, ai, renderActions }) {
+export function MilestoneRow({ escrowId, m, ai, renderActions, onOpen }) {
   const ver = (ai && ai.ver) || {};
   const display = (ai && ai.display) || chain.STATUS[m.status] || String(m.status);
   const review = display === "Manual Review Needed";
   const showConf = ver.confidence !== undefined;
   const tx = ver.tx_hash;
+  const clickable = typeof onOpen === "function";
+
+  const handleClick = (e) => {
+    if (!clickable) return;
+    // Jangan buka popup kalau yang diklik tombol/tautan action (approve, refund, tx link).
+    if (e.target.closest("button, a")) return;
+    onOpen(m);
+  };
 
   return (
-    <div className="milestone">
+    <div className={clickable ? "milestone clickable" : "milestone"}
+      onClick={handleClick}
+      role={clickable ? "button" : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onKeyDown={clickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(m); } } : undefined}>
       <div className="msHead">
         <div>
-          <div className="msTitle">Milestone {m.index}</div>
+          <div className="msTitle">
+            Milestone {m.index}
+            {clickable && <span className="cvHint">· click for detail ↗</span>}
+          </div>
           <div className="amount">{m.amountEther} <span className="unit">token</span></div>
         </div>
         <div className="msRight">
@@ -128,12 +146,26 @@ export function MilestoneRow({ escrowId, m, ai, renderActions }) {
       <div className="meta" style={{ marginTop: 8 }}>
         <b>Criteria:</b> {m.proofRequirement}
       </div>
-      {m.proofText && (
+
+      {/* Rows yang membuka popup (clickable) tidak menampilkan detail inline — cukup ringkas
+          dan rapi; detail lengkap (proof, reason, tx) tersedia di popup saat diklik. */}
+      {!clickable && m.proofText && (
         <div className="meta"><b>Proof:</b> {m.proofText}</div>
       )}
-      <ReasonExpander reason={ver.reason} />
-      {tx && <div className="ok">Release tx: {tx.slice(0, 22)}…</div>}
-      {ai && ai.backendError && (
+      {!clickable && <ReasonExpander reason={ver.reason} />}
+      {!clickable && tx && (
+        <div className="ok">
+          Release tx:{" "}
+          {chain.EXPLORER_URL ? (
+            <a href={chain.explorerTxUrl(tx)} target="_blank" rel="noreferrer">
+              {`${tx.slice(0, 10)}…${tx.slice(-6)}`} ↗
+            </a>
+          ) : (
+            tx
+          )}
+        </div>
+      )}
+      {!clickable && ai && ai.backendError && (
         <div className="error">AI verdict unavailable (backend off): {ai.backendError}</div>
       )}
       {renderActions && (

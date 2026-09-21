@@ -13,12 +13,69 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 
 import httpx
 
 import config
 
 log = logging.getLogger("mileai.ai")
+
+# Retry error transien dari LLM provider (Gemini sering 503 saat overload,
+# 429 rate-limit). Semua status ini pantas dicoba ulang dengan backoff.
+LLM_MAX_RETRIES = 3
+LLM_RETRY_DELAY = 1.0  # detik; backoff bertahap: 1s, 2s, 4s
+RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+
+
+class LLMError(RuntimeError):
+    """Kesalahan panggilan LLM dengan pesan BERSIH.
+
+    Tidak pernah memuat URL/query — URL `generateContent` memuat API key di
+    query string, dan pesan exception yang menyertainya (HTTPStatusError)
+    membocorkan key itu ke SQLite & UI kalau di-str begitu saja.
+    """
+
+
+_KEY_PATTERN = re.compile(r"(?i)\b(key|apikey|api_key|token)=([^\s'\"]+)")
+_KEY_PATTERN_SUB = r"\g<1>=***"
+
+
+def _redact(text) -> str:
+    """Netralkan teks keamanan apa pun yang mirip `key=...` di teks bebas.
+
+    Jaring pengaman terakhir: dipakai untuk SEMUA teks yang boleh sampai ke
+    SQLite/UI/log. Sekalipun salah satu string exception carry URL request,
+    bagian `key=` di dalamnya pasti dihapus.
+    """
+    return _KEY_PATTERN.sub(_KEY_PATTERN_SUB, str(text))
+
+
+def request_with_retry(url, *, json=None, headers=None, timeout: float):
+    """POST dengan retry pada error transien; error diformat tanpa key/URL."""
+    delay = LLM_RETRY_DELAY
+    request_error = None
+    last_status = None
+    last_text = ""
+    for attempt in range(LLM_MAX_RETRIES + 1):
+        if attempt:
+            time.sleep(delay)
+            delay *= 2
+        try:
+            resp = httpx.post(url, json=json, headers=headers, timeout=timeout)
+        except httpx.RequestError as exc:  # network/timeout — layak retry
+            request_error = exc
+            continue
+        if resp.status_code < 400:
+            return resp
+        last_status = resp.status_code
+        last_text = resp.text or ""
+        if resp.status_code not in RETRYABLE_STATUS:
+            break
+    if last_status is not None:
+        detail = f": {_redact(last_text[:200])}" if last_text else ""
+        raise LLMError(f"LLM HTTP {last_status}{detail}")
+    raise LLMError(f"LLM request gagal: {_redact(request_error)}")
 
 SYSTEM_INSTRUCTION = (
     "Kamu adalah verifier escrow yang bertanggung jawab menilai apakah bukti "
@@ -40,7 +97,7 @@ SYSTEM_INSTRUCTION = (
     '{"confidence": <int 0-100>, "reason": "<alasan singkat>"}'
 )
 
-DEFAULT_MODEL = {"groq": "llama-3.3-70b-versatile", "gemini": "gemini-2.0-flash"}
+DEFAULT_MODEL = {"groq": "llama-3.3-70b-versatile", "gemini": "gemini-flash-latest"}
 
 
 def build_user_payload(requirement: str, proof: str) -> str:
@@ -85,8 +142,10 @@ def _call_groq(api_key: str, model: str, system: str, user: str, timeout: float 
         "response_format": {"type": "json_object"},
         "temperature": 0,
     }
-    resp = httpx.post(url, json=body, headers={"Authorization": f"Bearer {api_key}"}, timeout=timeout)
-    resp.raise_for_status()
+    resp = request_with_retry(
+        url, json=body,
+        headers={"Authorization": f"Bearer {api_key}"}, timeout=timeout,
+    )
     return resp.json()["choices"][0]["message"]["content"]
 
 
@@ -99,8 +158,7 @@ def _call_gemini(api_key: str, model: str, system: str, user: str, timeout: floa
         "systemInstruction": {"parts": [{"text": system}]},
         "contents": [{"role": "user", "parts": [{"text": user}]}],
     }
-    resp = httpx.post(url, json=body, timeout=timeout)
-    resp.raise_for_status()
+    resp = request_with_retry(url, json=body, timeout=timeout)
     data = resp.json()
     candidates = data.get("candidates") or []
     if not candidates:

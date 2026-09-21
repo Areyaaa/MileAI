@@ -20,6 +20,7 @@ from pathlib import Path
 
 from web3 import Web3
 from web3.exceptions import BadFunctionCallOutput, ContractCustomError
+from web3.middleware import ExtraDataToPOAMiddleware
 
 import config
 
@@ -43,6 +44,14 @@ class ContractClient:
         self.private_key = (private_key or config.AGENT_PRIVATE_KEY).strip()
 
         self.w3 = Web3(Web3.HTTPProvider(self.rpc, request_kwargs={"timeout": 30}))
+        # BSC = Proof-of-Authority: block extraData bisa >32 byte (mis. 279 byte).
+        # Tanpa middleware ini, web3.py melempar "extraData is N bytes, but should be 32"
+        # saat membaca blok terbaru (mis. di wait_for_transaction_receipt).
+        try:
+            self.w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
+        except AttributeError:
+            # Web3 palsu di test tidak punya middleware_onion — abaikan.
+            pass
         if not self.w3.is_connected():
             raise ContractError(f"Tidak bisa terhubung ke RPC {self.rpc}")
 

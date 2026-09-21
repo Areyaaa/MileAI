@@ -15,6 +15,7 @@ import { useWallet } from "../../lib/wallet";
 import * as chain from "../../lib/contract";
 import { loadAllEscrows, byRecipient } from "../../lib/escrows";
 import { getProjects } from "../../lib/projects";
+import { addTxLog } from "../../lib/txlog";
 
 export default function WorkerSubmit() {
   const { provider, account, requireSigner, pushLog, setError, busy, setBusy } = useWallet();
@@ -49,14 +50,18 @@ export default function WorkerSubmit() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [provider, account]);
 
-  // Prefill the escrow from ?escrow=<id> query (e.g., dashboard worker button).
+  // Prefill the escrow & milestone from query (?escrow=<id>&milestone=<index>).
   useEffect(() => {
     const q = router.query.escrow;
     if (q && Array.isArray(q) ? q[0] : q) {
       setEscrowSel(String(q));
     }
+    const qm = router.query.milestone;
+    if (qm && Array.isArray(qm) ? qm[0] : qm) {
+      setMilestoneSel(String(qm));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router.query.escrow]);
+  }, [router.query.escrow, router.query.milestone]);
 
   const mine = byRecipient(escrows, account);
 
@@ -73,8 +78,13 @@ export default function WorkerSubmit() {
     if (escrowSel && pendingMilestones.length === 0 && !loading) {
       setEscrowSel("");
       setMilestoneSel("");
+      return;
     }
-  }, [escrowSel, pendingMilestones, loading]);
+    // Prefilled milestone (from ?milestone=) must still be Pending; otherwise clear it.
+    if (escrowSel && milestoneSel !== "" && !pendingMilestones.some((m) => String(m.index) === milestoneSel) && !loading) {
+      setMilestoneSel("");
+    }
+  }, [escrowSel, milestoneSel, pendingMilestones, loading]);
 
   const onSubmit = async () => {
     try {
@@ -82,7 +92,7 @@ export default function WorkerSubmit() {
       if (!escrowSel) throw new Error("Select an escrow first.");
       if (milestoneSel === "") throw new Error("Select the milestone to submit.");
       if (!proof.trim()) throw new Error("Fill in the proof of work text.");
-      if (!/^https?:\/\/\S+\.\S+/.test(link.trim())) {
+      if (!/^https?:\/\/\S+$/i.test(link.trim())) {
         throw new Error("The link is required and must be valid (https://…).");
       }
       setBusy("submit");
@@ -90,6 +100,11 @@ export default function WorkerSubmit() {
       const text = `${proof.trim()}\nLink: ${link.trim()}`;
       const rc = await chain.submitProof(signer, parseInt(escrowSel, 10), parseInt(milestoneSel, 10), text);
       pushLog(`Proof submitted escrow ${escrowSel} m${milestoneSel}: ${rc.hash}`);
+      addTxLog("submit", {
+        hash: rc.hash,
+        escrowId: parseInt(escrowSel, 10),
+        milestoneIndex: parseInt(milestoneSel, 10),
+      });
       setResult({ escrowId: escrowSel, milestone: milestoneSel, hash: rc.hash, proofText: text });
       setProof("");
       setLink("");
