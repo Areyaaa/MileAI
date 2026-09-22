@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: mileai-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    plan: free
+    envVars:
+      - key: BSC_TESTNET_RPC
+        value: https://bsc-testnet-rpc.publicnode.com
+      - key: CONTRACT_ADDRESS
+        value: 0x4bdcc0f0b23870f3c07f23f6c4461fe37633e0cf
+      - key: LLM_PROVIDER
+        value: gemini
+      - key: AGENT_PRIVATE_KEY
+        sync: false
+      - key: LLM_API_KEY
+        sync: false
+      - key: AGENT_TRIGGER_TOKEN
+        sync: false
+      - key: ALLOWED_CORS_ORIGINS
+        value: http://localhost:3000
+        sync: false
+      - key: DB_PATH
+        value: /var/data/mileai.db
+    disk:
+      name: mileai-data
+      mountPath: /var/data
+      sizeGB: 1
