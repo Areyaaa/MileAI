@@ -22,9 +22,3 @@ services:
       - key: ALLOWED_CORS_ORIGINS
         value: http://localhost:3000
         sync: false
-      - key: DB_PATH
-        value: /var/data/mileai.db
-    disk:
-      name: mileai-data
-      mountPath: /var/data
-      sizeGB: 1
