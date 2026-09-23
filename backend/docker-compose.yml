@@ -21,15 +21,18 @@ services:
       - frontend_work:/workspace
       - ./www:/srv/www
     entrypoint: ["/bin/sh", "-c"]
-    command: |
-      cp -r /srv/src/. /workspace/ && cd /workspace && npm ci && npm run build && cp -r out/. /srv/www/ && echo FRONTEND_BUILD_OK
+    command:
+      - cp -r /srv/src/. /workspace/ && cd /workspace && npm ci && npm run build && cp -r out/. /srv/www/ && echo FRONTEND_BUILD_OK
     restart: "no"
 
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_started
+      frontend:
+        condition: service_completed_successfully
     ports:
       - "80:80"
       - "443:443"

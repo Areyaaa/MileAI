@@ -96,7 +96,7 @@ mileai/
 └── PRD-MileAI-SoloScope.md          # Product Requirements Document
 ```
 
-Deployment guide (Render + Vercel): [`deploy.md`](./deploy.md).
+Deployment guide (VPS + Docker Compose, dengan opsi cadangan Render/Vercel): [`deploy.md`](./deploy.md).
 
 ---
 
