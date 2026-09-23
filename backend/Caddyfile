@@ -1,3 +1,9 @@
+{$API_DOMAIN} {
+	reverse_proxy backend:8000
+}
+
 {$DOMAIN} {
-    reverse_proxy backend:8000
+	root * /srv/www
+	try_files {path} {path}/ {path}.html
+	file_server
 }

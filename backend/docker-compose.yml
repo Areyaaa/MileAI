@@ -8,6 +8,23 @@ services:
     volumes:
       - db:/data
 
+  frontend:
+    image: node:20-alpine
+    environment:
+      NEXT_PUBLIC_BACKEND_URL: https://${API_DOMAIN}
+      NEXT_PUBLIC_CONTRACT_ADDRESS: ${CONTRACT_ADDRESS}
+      NEXT_PUBLIC_CHAIN_ID: "97"
+      NEXT_PUBLIC_TESTNET_RPC: ${BSC_TESTNET_RPC}
+      NEXT_PUBLIC_TRIGGER_TOKEN: ${AGENT_TRIGGER_TOKEN}
+    volumes:
+      - ../frontend:/srv/src:ro
+      - frontend_work:/workspace
+      - ./www:/srv/www
+    entrypoint: ["/bin/sh", "-c"]
+    command: |
+      cp -r /srv/src/. /workspace/ && cd /workspace && npm ci && npm run build && cp -r out/. /srv/www/ && echo FRONTEND_BUILD_OK
+    restart: "no"
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
@@ -18,12 +35,15 @@ services:
       - "443:443"
     environment:
       - DOMAIN=${DOMAIN:-localhost}
+      - API_DOMAIN=${API_DOMAIN:-api.localhost}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./www:/srv/www
       - caddy_data:/data
       - caddy_config:/config
 
 volumes:
   db:
+  frontend_work:
   caddy_data:
   caddy_config:

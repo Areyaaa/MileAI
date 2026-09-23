@@ -18,8 +18,12 @@ backend/htmlcov/
 # Frontend
 frontend/node_modules/
 frontend/.next/
+frontend/out/
 frontend/.env
 frontend/.env.local
+
+# VPS build artifacts (komposisi docker compose)
+backend/www/
 
 # OS
 Thumbs.db
